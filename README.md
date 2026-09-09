@@ -36,7 +36,7 @@ libs/
 1. Start the infrastructure (Redpanda + Redis + a Redpanda Console UI):
 
    ```bash
-   docker compose up -d
+   docker-compose up -d
    ```
 
 2. Install dependencies and the Playwright browser:
@@ -89,9 +89,9 @@ See [`.env.example`](.env.example) for the full list — Kafka/Redis connection 
 ## Testing
 
 ```bash
-npm run test       # unit tests (vitest)
-npm run test:e2e   # end-to-end tests
-npm run test:cov   # coverage
+npm run test:unit   # unit tests (vitest)
+npm run test:e2e    # end-to-end tests
+npm run test:cov    # coverage
 npm run lint        # oxlint
 npm run format      # prettier
 ```
