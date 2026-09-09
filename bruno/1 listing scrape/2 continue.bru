@@ -1,0 +1,15 @@
+meta {
+  name: 2 continue
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/scrape/listing/{{fromRunId}}/continue
+  body: none
+  auth: none
+}
+
+vars:pre-request {
+  fromRunId: 2026-09-07T10:15:03.415Z
+}

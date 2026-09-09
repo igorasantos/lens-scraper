@@ -1,0 +1,20 @@
+FROM mcr.microsoft.com/playwright:v1.62.1-noble AS deps
+WORKDIR /app
+
+RUN npm install -g npm@11.17.0
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM deps AS build
+COPY . .
+RUN npx nest build worker
+
+FROM mcr.microsoft.com/playwright:v1.62.1-noble AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+RUN npm install -g npm@11.17.0
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=build /app/dist/apps/worker ./dist/apps/worker
+
+CMD ["node", "dist/apps/worker/main.js"]

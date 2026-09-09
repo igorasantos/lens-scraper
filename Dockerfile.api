@@ -1,0 +1,21 @@
+FROM node:24-slim AS deps
+WORKDIR /app
+
+RUN npm install -g npm@11.17.0
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM deps AS build
+COPY . .
+RUN npx nest build api
+
+FROM node:24-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+RUN npm install -g npm@11.17.0
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=build /app/dist/apps/api ./dist/apps/api
+
+EXPOSE 3000
+CMD ["node", "dist/apps/api/main.js"]

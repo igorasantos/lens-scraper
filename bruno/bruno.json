@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "lens-scraper",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}

@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+
+config/site.config.json
+
+browser-profile/
+
+*.log
+.DS_Store
+.*
+!.dockerignore
+!.env.example
+!.gitignore
+!.prettierrc
+!.nvmrc

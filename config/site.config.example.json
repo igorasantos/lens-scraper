@@ -1,0 +1,47 @@
+{
+  "scrollFocusSelector": "#app",
+  "listing": {
+    "pageSize": 25,
+    "containerSelector": "container",
+    "containerTimeoutMs": 10000,
+    "cardSelector": "card",
+    "cardIdAttribute": "data-card-id",
+    "cardIdPrefix": "card-"
+  },
+  "detail": {
+    "urlTemplate": "https://example.com/{id}",
+    "sectionSelector": "section",
+    "headerContainerSelector": "header",
+    "featureSelector": "feature",
+    "bodySelectorTemplate": "body_{id}",
+    "sourceSelectorTemplate": "source_{id}\"]",
+    "expiredMarker": "not available"
+  },
+  "source": {
+    "urlPrefix": "https://example.com/source/"
+  },
+  "auth": {
+    "loginUrl": "https://example.com/login"
+  },
+  "sanitize": {
+    "stripAttributes": ["class"],
+    "stripElements": ["script"]
+  },
+  "storage": {
+    "recordsFilenameTemplate": "records_{lang}.txt",
+    "expiredRecordsFilename": "records_expired.txt",
+    "unknownLanguageBucket": "xx",
+    "recordDetailRootDir": "1_records_raw",
+    "expiredRecordDetailDir": "expired",
+    "sourceDetailRootDir": "0_sources",
+    "recordTitlesRootDir": "2_record_titles",
+    "recordsFilteredRootDir": "3_records_filtered",
+    "listingIdsFilename": "listing-ids.txt",
+    "rawListingIdsFilename": "raw_listing_ids.txt",
+    "failuresLogFilename": "failures.log",
+    "sourcesFilename": "sources.txt",
+    "recordTitlesRawFilename": "1_raw.txt",
+    "recordTitlesDedupSortedFilename": "2_dedup_sorted.txt",
+    "recordTitlesFilteredFilename": "3_filtered.txt"
+  }
+}
