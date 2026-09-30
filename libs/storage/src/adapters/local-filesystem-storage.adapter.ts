@@ -11,7 +11,7 @@ import {
 } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import type { ConfigService } from '@app/config';
-import type { StoragePort } from '../storage.port.js';
+import type { StorageListOptions, StoragePort } from '../storage.port.js';
 export class LocalFilesystemStorageAdapter implements StoragePort {
   constructor(private readonly config: ConfigService) {}
   async read(key: string): Promise<string> {
@@ -47,10 +47,13 @@ export class LocalFilesystemStorageAdapter implements StoragePort {
       }
     }
   }
-  async list(prefix: string): Promise<string[]> {
+  async list(
+    prefix: string,
+    { recursive = true }: StorageListOptions = {},
+  ): Promise<string[]> {
     const rootPath = this.resolve(prefix);
     const keys: string[] = [];
-    await this.walk(rootPath, keys);
+    await this.walk(rootPath, keys, recursive);
     return keys;
   }
   async copy(sourceKey: string, destKey: string): Promise<void> {
@@ -66,7 +69,11 @@ export class LocalFilesystemStorageAdapter implements StoragePort {
     }
     return resolved;
   }
-  private async walk(dirPath: string, keys: string[]): Promise<void> {
+  private async walk(
+    dirPath: string,
+    keys: string[],
+    recursive: boolean,
+  ): Promise<void> {
     let entries: Dirent[];
     try {
       entries = await readdir(dirPath, { withFileTypes: true });
@@ -79,7 +86,9 @@ export class LocalFilesystemStorageAdapter implements StoragePort {
     for (const entry of entries) {
       const entryPath = join(dirPath, entry.name);
       if (entry.isDirectory()) {
-        await this.walk(entryPath, keys);
+        if (recursive) {
+          await this.walk(entryPath, keys, recursive);
+        }
       } else {
         keys.push(relative(this.config.localStorageDir, entryPath));
       }

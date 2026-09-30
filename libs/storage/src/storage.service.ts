@@ -142,7 +142,7 @@ export class StorageService {
     this.logger.debug(`Wrote ${recordIds.length} record id(s) to ${key}`);
   }
   async readRecordIds(): Promise<Set<string>> {
-    const entries = await this.storage.list('');
+    const entries = await this.storage.list('', { recursive: false });
     const recordIds = new Set<string>();
     for (const entry of entries) {
       if (

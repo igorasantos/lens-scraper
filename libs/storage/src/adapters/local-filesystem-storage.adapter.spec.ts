@@ -97,6 +97,13 @@ describe('LocalFilesystemStorageAdapter', () => {
       ['records_en.txt', join('1_records_raw', 'en', '111.html')].sort(),
     );
   });
+  it('list() with recursive: false returns only the files directly under the prefix', async () => {
+    await adapter.write('records_en.txt', '111\n');
+    await adapter.write('records_es.txt', '222\n');
+    await adapter.write('1_records_raw/en/111.html', '<div>en</div>');
+    const keys = await adapter.list('', { recursive: false });
+    expect(keys.sort()).toEqual(['records_en.txt', 'records_es.txt']);
+  });
   it('copy() copies the source into the destination, creating parent directories, leaving the source untouched', async () => {
     await adapter.write('1_records_raw/en/111.html', '<div>111</div>');
     await adapter.copy(

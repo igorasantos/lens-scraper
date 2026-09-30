@@ -5,7 +5,7 @@ import { ConfigService } from '@app/config';
 import { SiteConfigService } from '@app/site';
 import { LOCK_KEY_PREFIX, LOCK_PORT, type LockPort } from '@app/redis-lock';
 import { STORAGE_PORT } from './storage-port.token.js';
-import type { StoragePort } from './storage.port.js';
+import type { StorageListOptions, StoragePort } from './storage.port.js';
 import { StorageService } from './storage.service.js';
 class FakeConfigService {
   fileLockTtlMs = 5000;
@@ -55,13 +55,15 @@ class FakeStoragePort implements StoragePort {
   async remove(key: string): Promise<void> {
     this.files.delete(key);
   }
-  async list(prefix: string): Promise<string[]> {
-    if (prefix === '') {
-      return [...this.files.keys()];
-    }
-    const normalizedPrefix = `${prefix}/`;
-    return [...this.files.keys()].filter((key) =>
-      key.startsWith(normalizedPrefix),
+  readonly listCalls: { prefix: string; options?: StorageListOptions }[] = [];
+  async list(prefix: string, options?: StorageListOptions): Promise<string[]> {
+    this.listCalls.push({ prefix, options });
+    const normalizedPrefix = prefix === '' ? '' : `${prefix}/`;
+    const recursive = options?.recursive ?? true;
+    return [...this.files.keys()].filter(
+      (key) =>
+        key.startsWith(normalizedPrefix) &&
+        (recursive || !key.slice(normalizedPrefix.length).includes('/')),
     );
   }
   async copy(sourceKey: string, destKey: string): Promise<void> {
@@ -217,6 +219,14 @@ describe('StorageService', () => {
     storage.files.set(service.recordsPath('en'), '111\n');
     storage.files.set('1_records_raw/en/records_lookalike.html', '<div></div>');
     await expect(service.readRecordIds()).resolves.toEqual(new Set(['111']));
+  });
+  it('readRecordIds lists only the storage root, without descending into subdirectories', async () => {
+    storage.files.set(service.recordsPath('en'), '111\n');
+    storage.files.set('nested/records_pt.txt', '222\n');
+    await expect(service.readRecordIds()).resolves.toEqual(new Set(['111']));
+    expect(storage.listCalls).toEqual([
+      { prefix: '', options: { recursive: false } },
+    ]);
   });
   it('builds the record detail key under 1_records_raw/<alpha2>/<record_id>.html', () => {
     expect(service.recordDetailPath('en', '123')).toBe(
