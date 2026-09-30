@@ -5,7 +5,7 @@ describe('ScrapeController', () => {
   let controller: ScrapeController;
   let scrapeService: {
     initListing: ReturnType<typeof vi.fn>;
-    continueListing: ReturnType<typeof vi.fn>;
+    reprocessPendingRecords: ReturnType<typeof vi.fn>;
     queueRecordDetails: ReturnType<typeof vi.fn>;
     reprocessExpiredRecords: ReturnType<typeof vi.fn>;
     reprocessXxRecords: ReturnType<typeof vi.fn>;
@@ -20,7 +20,7 @@ describe('ScrapeController', () => {
         runId: 'run-1',
         status: 'queued',
       }),
-      continueListing: vi.fn().mockResolvedValue({
+      reprocessPendingRecords: vi.fn().mockResolvedValue({
         runId: 'run-2',
         fromRunId: '11111111-1111-4111-8111-111111111111',
         status: 'queued',
@@ -69,10 +69,12 @@ describe('ScrapeController', () => {
     expect(scrapeService.initListing).toHaveBeenCalledWith(dto);
     expect(result).toEqual({ runId: 'run-1', status: 'queued' });
   });
-  it('delegates listing continue to the service and returns its result', async () => {
+  it('delegates pending reprocess to the service and returns its result', async () => {
     const fromRunId = '11111111-1111-4111-8111-111111111111';
-    const result = await controller.continueListing(fromRunId);
-    expect(scrapeService.continueListing).toHaveBeenCalledWith(fromRunId);
+    const result = await controller.reprocessPendingRecords(fromRunId);
+    expect(scrapeService.reprocessPendingRecords).toHaveBeenCalledWith(
+      fromRunId,
+    );
     expect(result).toEqual({
       runId: 'run-2',
       fromRunId,

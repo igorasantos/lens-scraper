@@ -1,23 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { StorageService } from '@app/storage';
-import { ListingContinueService } from './listing-continue.service.js';
+import { PendingReprocessService } from './pending-reprocess.service.js';
 import { ListingDispatchService } from './listing-dispatch.service.js';
-describe('ListingContinueService', () => {
+describe('PendingReprocessService', () => {
   let storage: {
     readRawListingIds: ReturnType<typeof vi.fn>;
   };
   let dispatch: {
     dispatch: ReturnType<typeof vi.fn>;
   };
-  async function buildService(): Promise<ListingContinueService> {
+  async function buildService(): Promise<PendingReprocessService> {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        ListingContinueService,
+        PendingReprocessService,
         { provide: StorageService, useValue: storage },
         { provide: ListingDispatchService, useValue: dispatch },
       ],
     }).compile();
-    return module.get<ListingContinueService>(ListingContinueService);
+    return module.get<PendingReprocessService>(PendingReprocessService);
   }
   beforeEach(() => {
     storage = {

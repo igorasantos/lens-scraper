@@ -12,7 +12,7 @@ import {
   SCRAPE_RECORDS_FILTER_TOPIC,
   SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC,
   SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
-  SCRAPE_LISTING_CONTINUE_TOPIC,
+  SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
   SCRAPE_LISTING_INIT_TOPIC,
   SCRAPE_LISTING_PAGE_TOPIC,
 } from './topics.js';
@@ -39,11 +39,11 @@ describe('QueueService', () => {
       message,
     );
   });
-  it('publishes a listing continue message to the listing continue topic', async () => {
+  it('publishes a pending reprocess message to the pending reprocess topic', async () => {
     const message = { runId: 'run-2', fromRunId: 'run-1' };
-    await service.publishListingContinue(message);
+    await service.publishPendingReprocess(message);
     expect(queuePort.publish).toHaveBeenCalledWith(
-      SCRAPE_LISTING_CONTINUE_TOPIC,
+      SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
       message,
     );
   });

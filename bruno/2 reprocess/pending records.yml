@@ -1,11 +1,11 @@
 info:
-  name: 2 continue
+  name: pending records
   type: http
   seq: 3
 
 http:
   method: POST
-  url: "{{baseUrl}}/scrape/listing/{{fromRunId}}/continue"
+  url: "{{baseUrl}}/scrape/records/pending/{{fromRunId}}/reprocess"
 
 runtime:
   variables:

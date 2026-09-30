@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-export class ListingContinueResponseDto {
+export class PendingReprocessResponseDto {
   @ApiProperty()
   runId!: string;
   @ApiProperty()

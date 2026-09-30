@@ -4,7 +4,7 @@ export interface ListingInitMessage {
   baseUrl: string;
   startPage?: number;
 }
-export interface ListingContinueMessage {
+export interface PendingReprocessMessage {
   runId: string;
   fromRunId: string;
 }

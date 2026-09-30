@@ -8,7 +8,7 @@ import { RedisLockModule } from '@app/redis-lock';
 import { WorkerController } from './worker.controller.js';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { ListingDispatchService } from './listing-dispatch.service.js';
-import { ListingContinueService } from './listing-continue.service.js';
+import { PendingReprocessService } from './pending-reprocess.service.js';
 import { DetailScraperService } from './detail-scraper.service.js';
 import { ExpiredReprocessService } from './expired-reprocess.service.js';
 import { XxReprocessService } from './xx-reprocess.service.js';
@@ -32,7 +32,7 @@ import { RecordsFilterService } from './records-filter.service.js';
   providers: [
     ListingCrawlerService,
     ListingDispatchService,
-    ListingContinueService,
+    PendingReprocessService,
     DetailScraperService,
     ExpiredReprocessService,
     XxReprocessService,

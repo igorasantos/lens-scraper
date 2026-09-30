@@ -10,7 +10,7 @@ import {
 import { ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ListingInitRequestDto } from './dto/listing-init-request.dto.js';
 import { ListingInitResponseDto } from './dto/listing-init-response.dto.js';
-import { ListingContinueResponseDto } from './dto/listing-continue-response.dto.js';
+import { PendingReprocessResponseDto } from './dto/pending-reprocess-response.dto.js';
 import type { RecordDetailsRequestDto } from './dto/record-details-request.dto.js';
 import { RecordDetailsResponseDto } from './dto/record-details-response.dto.js';
 import { ExpiredReprocessResponseDto } from './dto/expired-reprocess-response.dto.js';
@@ -36,15 +36,6 @@ export class ScrapeController {
   ): Promise<ListingInitResponseDto> {
     return this.scrapeService.initListing(dto);
   }
-  @Post('listing/:fromRunId/continue')
-  @HttpCode(HttpStatus.ACCEPTED)
-  @ApiOkResponse({ type: ListingContinueResponseDto })
-  continueListing(
-    @Param('fromRunId')
-    fromRunId: string,
-  ): Promise<ListingContinueResponseDto> {
-    return this.scrapeService.continueListing(fromRunId);
-  }
   @Post('records/details')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiBody({ type: [String] })
@@ -66,6 +57,15 @@ export class ScrapeController {
   @ApiOkResponse({ type: XxReprocessResponseDto })
   reprocessXxRecords(): Promise<XxReprocessResponseDto> {
     return this.scrapeService.reprocessXxRecords();
+  }
+  @Post('records/pending/:fromRunId/reprocess')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOkResponse({ type: PendingReprocessResponseDto })
+  reprocessPendingRecords(
+    @Param('fromRunId')
+    fromRunId: string,
+  ): Promise<PendingReprocessResponseDto> {
+    return this.scrapeService.reprocessPendingRecords(fromRunId);
   }
   @Post('records/titles/extract')
   @HttpCode(HttpStatus.ACCEPTED)

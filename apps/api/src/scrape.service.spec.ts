@@ -6,7 +6,7 @@ import { ScrapeService } from './scrape.service.js';
 describe('ScrapeService', () => {
   let queue: {
     publishListingInit: ReturnType<typeof vi.fn>;
-    publishListingContinue: ReturnType<typeof vi.fn>;
+    publishPendingReprocess: ReturnType<typeof vi.fn>;
     publishRecordDetailsBatch: ReturnType<typeof vi.fn>;
     publishExpiredReprocess: ReturnType<typeof vi.fn>;
     publishXxReprocess: ReturnType<typeof vi.fn>;
@@ -31,7 +31,7 @@ describe('ScrapeService', () => {
   beforeEach(() => {
     queue = {
       publishListingInit: vi.fn().mockResolvedValue(undefined),
-      publishListingContinue: vi.fn().mockResolvedValue(undefined),
+      publishPendingReprocess: vi.fn().mockResolvedValue(undefined),
       publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined),
       publishExpiredReprocess: vi.fn().mockResolvedValue(undefined),
       publishXxReprocess: vi.fn().mockResolvedValue(undefined),
@@ -110,15 +110,15 @@ describe('ScrapeService', () => {
       }
     });
   });
-  describe('continueListing', () => {
-    it('publishes a listing continue message with a new runId and the given fromRunId', async () => {
+  describe('reprocessPendingRecords', () => {
+    it('publishes a pending reprocess message with a new runId and the given fromRunId', async () => {
       const service = await buildService();
-      const result = await service.continueListing('run-1');
+      const result = await service.reprocessPendingRecords('run-1');
       expect(result.status).toBe('queued');
       expect(result.fromRunId).toBe('run-1');
       expect(typeof result.runId).toBe('string');
       expect(result.runId).not.toBe('run-1');
-      expect(queue.publishListingContinue).toHaveBeenCalledWith({
+      expect(queue.publishPendingReprocess).toHaveBeenCalledWith({
         runId: result.runId,
         fromRunId: 'run-1',
       });
@@ -128,9 +128,9 @@ describe('ScrapeService', () => {
       try {
         const service = await buildService();
         vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
-        const first = await service.continueListing('run-1');
+        const first = await service.reprocessPendingRecords('run-1');
         vi.setSystemTime(new Date('2026-01-01T00:00:00.001Z'));
-        const second = await service.continueListing('run-1');
+        const second = await service.reprocessPendingRecords('run-1');
         expect(first.runId).not.toBe(second.runId);
       } finally {
         vi.useRealTimers();
@@ -138,10 +138,10 @@ describe('ScrapeService', () => {
     });
     it('throws and does not publish when fromRunId contains a path separator', async () => {
       const service = await buildService();
-      await expect(service.continueListing('../../etc/passwd')).rejects.toThrow(
-        BadRequestException,
-      );
-      expect(queue.publishListingContinue).not.toHaveBeenCalled();
+      await expect(
+        service.reprocessPendingRecords('../../etc/passwd'),
+      ).rejects.toThrow(BadRequestException);
+      expect(queue.publishPendingReprocess).not.toHaveBeenCalled();
     });
   });
   describe('queueRecordDetails', () => {

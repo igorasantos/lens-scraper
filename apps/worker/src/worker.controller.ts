@@ -12,7 +12,7 @@ import {
   SCRAPE_RECORDS_FILTER_TOPIC,
   SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC,
   SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
-  SCRAPE_LISTING_CONTINUE_TOPIC,
+  SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
   SCRAPE_LISTING_INIT_TOPIC,
   SCRAPE_LISTING_PAGE_TOPIC,
   type ExpiredReprocessMessage,
@@ -24,7 +24,7 @@ import {
   type RecordTitlesDedupSortMessage,
   type RecordTitlesExtractMessage,
   type RecordTitlesFilterMessage,
-  type ListingContinueMessage,
+  type PendingReprocessMessage,
   type ListingInitMessage,
   type ListingPageMessage,
   type XxReprocessMessage,
@@ -39,14 +39,14 @@ import { RecordTitlesDedupSortService } from './record-titles-dedup-sort.service
 import { RecordTitlesExtractService } from './record-titles-extract.service.js';
 import { RecordTitlesFilterService } from './record-titles-filter.service.js';
 import { RecordsFilterService } from './records-filter.service.js';
-import { ListingContinueService } from './listing-continue.service.js';
+import { PendingReprocessService } from './pending-reprocess.service.js';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 @Controller()
 export class WorkerController {
   constructor(
     private readonly detailScraper: DetailScraperService,
     private readonly listingCrawler: ListingCrawlerService,
-    private readonly listingContinue: ListingContinueService,
+    private readonly pendingReprocess: PendingReprocessService,
     private readonly expiredReprocess: ExpiredReprocessService,
     private readonly xxReprocess: XxReprocessService,
     private readonly recordTitlesExtract: RecordTitlesExtractService,
@@ -89,13 +89,15 @@ export class WorkerController {
       this.listingCrawler.continuePage(message),
     );
   }
-  @EventPattern(SCRAPE_LISTING_CONTINUE_TOPIC)
-  handleListingContinue(
+  @EventPattern(SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC)
+  handlePendingReprocess(
     @Payload()
-    message: ListingContinueMessage,
+    message: PendingReprocessMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_LISTING_CONTINUE_TOPIC, message, () =>
-      this.listingContinue.run(message.runId, message.fromRunId),
+    return this.deadLetter.run(
+      SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
+      message,
+      () => this.pendingReprocess.run(message.runId, message.fromRunId),
     );
   }
   @EventPattern(SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC)

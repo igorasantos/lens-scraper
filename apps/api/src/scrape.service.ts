@@ -3,8 +3,8 @@ import { ConfigService } from '@app/config';
 import { QueueService, stampScheduledAt } from '@app/queue';
 import type { ListingInitRequestDto } from './dto/listing-init-request.dto.js';
 import type { ListingInitResponseDto } from './dto/listing-init-response.dto.js';
-import type { ListingContinueResponseDto } from './dto/listing-continue-response.dto.js';
-import { RUN_ID_PATTERN } from './dto/listing-continue-request.dto.js';
+import type { PendingReprocessResponseDto } from './dto/pending-reprocess-response.dto.js';
+import { RUN_ID_PATTERN } from './dto/pending-reprocess-request.dto.js';
 import {
   RECORD_ID_PATTERN,
   type RecordDetailsRequestDto,
@@ -45,18 +45,6 @@ export class ScrapeService {
     });
     return { runId, status: 'queued' };
   }
-  async continueListing(
-    fromRunId: string,
-  ): Promise<ListingContinueResponseDto> {
-    if (!RUN_ID_PATTERN.test(fromRunId)) {
-      throw new BadRequestException(
-        `fromRunId contains invalid characters: ${fromRunId}`,
-      );
-    }
-    const runId = generateRunId();
-    await this.queue.publishListingContinue({ runId, fromRunId });
-    return { runId, fromRunId, status: 'queued' };
-  }
   async queueRecordDetails(
     recordIds: RecordDetailsRequestDto,
   ): Promise<RecordDetailsResponseDto[]> {
@@ -88,6 +76,18 @@ export class ScrapeService {
     const runId = generateRunId();
     await this.queue.publishXxReprocess({ runId });
     return { runId, status: 'queued' };
+  }
+  async reprocessPendingRecords(
+    fromRunId: string,
+  ): Promise<PendingReprocessResponseDto> {
+    if (!RUN_ID_PATTERN.test(fromRunId)) {
+      throw new BadRequestException(
+        `fromRunId contains invalid characters: ${fromRunId}`,
+      );
+    }
+    const runId = generateRunId();
+    await this.queue.publishPendingReprocess({ runId, fromRunId });
+    return { runId, fromRunId, status: 'queued' };
   }
   async extractRecordTitles(): Promise<RecordTitlesExtractResponseDto> {
     const runId = generateRunId();

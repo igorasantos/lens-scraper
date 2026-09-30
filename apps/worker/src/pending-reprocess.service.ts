@@ -7,7 +7,7 @@ import {
 /* v8 ignore start */
 @Injectable()
 /* v8 ignore stop */
-export class ListingContinueService {
+export class PendingReprocessService {
   constructor(
     private readonly storage: StorageService,
     private readonly dispatch: ListingDispatchService,

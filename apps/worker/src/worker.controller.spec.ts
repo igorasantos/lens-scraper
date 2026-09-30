@@ -11,7 +11,7 @@ import { RecordTitlesDedupSortService } from './record-titles-dedup-sort.service
 import { RecordTitlesExtractService } from './record-titles-extract.service.js';
 import { RecordTitlesFilterService } from './record-titles-filter.service.js';
 import { RecordsFilterService } from './records-filter.service.js';
-import { ListingContinueService } from './listing-continue.service.js';
+import { PendingReprocessService } from './pending-reprocess.service.js';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { WorkerController } from './worker.controller.js';
 describe('WorkerController', () => {
@@ -23,7 +23,7 @@ describe('WorkerController', () => {
     start: ReturnType<typeof vi.fn>;
     continuePage: ReturnType<typeof vi.fn>;
   };
-  let listingContinue: {
+  let pendingReprocess: {
     run: ReturnType<typeof vi.fn>;
   };
   let expiredReprocess: {
@@ -59,7 +59,7 @@ describe('WorkerController', () => {
       start: vi.fn().mockResolvedValue(undefined),
       continuePage: vi.fn().mockResolvedValue(undefined),
     };
-    listingContinue = {
+    pendingReprocess = {
       run: vi.fn().mockResolvedValue({
         dispatched: ['1', '2'],
         skipped: [],
@@ -91,7 +91,7 @@ describe('WorkerController', () => {
       providers: [
         { provide: DetailScraperService, useValue: detailScraper },
         { provide: ListingCrawlerService, useValue: listingCrawler },
-        { provide: ListingContinueService, useValue: listingContinue },
+        { provide: PendingReprocessService, useValue: pendingReprocess },
         { provide: ExpiredReprocessService, useValue: expiredReprocess },
         { provide: XxReprocessService, useValue: xxReprocess },
         { provide: RecordTitlesExtractService, useValue: recordTitlesExtract },
@@ -165,11 +165,11 @@ describe('WorkerController', () => {
       expect(listingCrawler.continuePage).toHaveBeenCalledWith(message);
     });
   });
-  describe('handleListingContinue', () => {
-    it('delegates to ListingContinueService', async () => {
+  describe('handlePendingReprocess', () => {
+    it('delegates to PendingReprocessService', async () => {
       const message = { runId: 'run-2', fromRunId: 'run-1' };
-      await workerController.handleListingContinue(message);
-      expect(listingContinue.run).toHaveBeenCalledWith('run-2', 'run-1');
+      await workerController.handlePendingReprocess(message);
+      expect(pendingReprocess.run).toHaveBeenCalledWith('run-2', 'run-1');
     });
   });
   describe('handleExpiredReprocess', () => {

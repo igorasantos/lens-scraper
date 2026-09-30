@@ -11,7 +11,7 @@ import type {
   RecordTitlesDedupSortMessage,
   RecordTitlesExtractMessage,
   RecordTitlesFilterMessage,
-  ListingContinueMessage,
+  PendingReprocessMessage,
   ListingInitMessage,
   ListingPageMessage,
   XxReprocessMessage,
@@ -27,7 +27,7 @@ import {
   SCRAPE_RECORDS_FILTER_TOPIC,
   SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC,
   SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
-  SCRAPE_LISTING_CONTINUE_TOPIC,
+  SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
   SCRAPE_LISTING_INIT_TOPIC,
   SCRAPE_LISTING_PAGE_TOPIC,
 } from './topics.js';
@@ -41,8 +41,8 @@ export class QueueService {
   publishListingInit(message: ListingInitMessage): Promise<void> {
     return this.emit(SCRAPE_LISTING_INIT_TOPIC, message);
   }
-  publishListingContinue(message: ListingContinueMessage): Promise<void> {
-    return this.emit(SCRAPE_LISTING_CONTINUE_TOPIC, message);
+  publishPendingReprocess(message: PendingReprocessMessage): Promise<void> {
+    return this.emit(SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC, message);
   }
   publishListingPage(message: ListingPageMessage): Promise<void> {
     return this.emit(SCRAPE_LISTING_PAGE_TOPIC, message);
