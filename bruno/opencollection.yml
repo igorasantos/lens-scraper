@@ -1,0 +1,10 @@
+opencollection: 1.0.0
+
+info:
+  name: lens-scraper
+  version: 0.0.1
+extensions:
+  bruno:
+    ignore:
+      - node_modules
+      - .git

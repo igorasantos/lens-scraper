@@ -1,0 +1,15 @@
+info:
+  name: expired records
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/scrape/records/expired/reprocess"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

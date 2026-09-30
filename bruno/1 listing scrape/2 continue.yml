@@ -1,0 +1,20 @@
+info:
+  name: 2 continue
+  type: http
+  seq: 3
+
+http:
+  method: POST
+  url: "{{baseUrl}}/scrape/listing/{{fromRunId}}/continue"
+
+runtime:
+  variables:
+    - name: fromRunId
+      value: 2026-00-00T00:00:00.000Z
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

@@ -1,0 +1,25 @@
+info:
+  name: 1 init
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: "{{baseUrl}}/scrape/listing/init"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+      //   "baseUrl": ""
+      //   "startPage": 1
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
