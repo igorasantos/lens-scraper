@@ -22,6 +22,9 @@ Every DOM selector, URL template, and on-disk filename lives in a JSON file at `
 apps/
   api/      HTTP controllers + producers (the only public surface)
   worker/   Kafka consumers that actually drive the browser
+            Both apps group src/ by domain — listing/, detail/, titles/, filter/
+            (+ dlq/ in api), each with its own module, controller, services, dto
+            and specs side by side; shared helpers live in common/.
 libs/
   browser/     Playwright session management
   site/        Configurable selectors/URLs (SiteConfigService) + DOM parsing (SiteService)

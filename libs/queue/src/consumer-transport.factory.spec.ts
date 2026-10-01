@@ -51,6 +51,7 @@ describe('KafkaConsumerTransportStrategy', () => {
       kafkaJS: {
         groupId: 'lens-scraper-detail-scraper',
         sessionTimeout: 60000,
+        fromBeginning: true,
       },
     });
     expect(mockConnect).toHaveBeenCalledTimes(1);

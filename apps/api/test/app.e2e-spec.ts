@@ -4,7 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { QueueService } from '@app/queue';
 import { ApiModule } from './../src/api.module.js';
-describe('ScrapeController (e2e)', () => {
+describe('ApiModule (e2e)', () => {
   let app: INestApplication<App>;
   let queue: {
     publishListingInit: ReturnType<typeof vi.fn>;

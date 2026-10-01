@@ -1,13 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@app/config';
-import { QueueModule } from '@app/queue';
-import { ScrapeController } from './scrape.controller.js';
-import { ScrapeService } from './scrape.service.js';
-import { DlqController } from './dlq.controller.js';
-import { DlqService } from './dlq.service.js';
+import { ListingModule } from './listing/listing.module.js';
+import { DetailModule } from './detail/detail.module.js';
+import { TitlesModule } from './titles/titles.module.js';
+import { FilterModule } from './filter/filter.module.js';
+import { DlqModule } from './dlq/dlq.module.js';
 @Module({
-  imports: [ConfigModule, QueueModule],
-  controllers: [ScrapeController, DlqController],
-  providers: [ScrapeService, DlqService],
+  imports: [ListingModule, DetailModule, TitlesModule, FilterModule, DlqModule],
 })
 export class ApiModule {}

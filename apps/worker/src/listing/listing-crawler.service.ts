@@ -6,7 +6,7 @@ import { LOCK_PORT, SESSION_LOCK_KEY, type LockPort } from '@app/redis-lock';
 import { ConfigService } from '@app/config';
 import { QueueService, type ListingPageMessage } from '@app/queue';
 import { ListingDispatchService } from './listing-dispatch.service.js';
-import { waitUntil } from './pacing.util.js';
+import { waitUntil } from '../common/pacing.util.js';
 interface PageState {
   runId: string;
   baseUrl: string;

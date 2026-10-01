@@ -8,7 +8,7 @@ import { ConfigService } from '@app/config';
 import { QUEUE_PORT, QueueService } from '@app/queue';
 import { StorageService } from '@app/storage';
 import { WorkerModule } from './../src/worker.module.js';
-import { WorkerController } from './../src/worker.controller.js';
+import { TitlesController } from './../src/titles/titles.controller.js';
 
 function buildTestConfig(localStorageDir: string): ConfigService {
   return {
@@ -42,9 +42,9 @@ function buildTestConfig(localStorageDir: string): ConfigService {
   } as unknown as ConfigService;
 }
 
-describe('WorkerController (e2e)', () => {
+describe('WorkerModule (e2e)', () => {
   let app: INestApplication<App>;
-  let controller: WorkerController;
+  let controller: TitlesController;
   let storage: StorageService;
   let storageDir: string;
 
@@ -65,7 +65,7 @@ describe('WorkerController (e2e)', () => {
       .compile();
     app = moduleFixture.createNestApplication();
     await app.init();
-    controller = app.get(WorkerController);
+    controller = app.get(TitlesController);
     storage = app.get(StorageService);
   });
 

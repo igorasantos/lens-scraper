@@ -13,6 +13,7 @@ async function bootstrap() {
     createConsumerTransportStrategy(config),
   );
   app.enableShutdownHooks();
+  await app.init();
   await app.startAllMicroservices();
   await app.listen(process.env.WORKER_PORT ?? 3001);
 }

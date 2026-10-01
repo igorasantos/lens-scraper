@@ -11,7 +11,7 @@ import { StorageService } from '@app/storage';
 import { LOCK_PORT, SESSION_LOCK_KEY, type LockPort } from '@app/redis-lock';
 import { ConfigService } from '@app/config';
 import type { RecordDetailMessage } from '@app/queue';
-import { sleep, waitUntil } from './pacing.util.js';
+import { sleep, waitUntil } from '../common/pacing.util.js';
 const MANUAL_RUN_ID = 'manual';
 function extractionExceededMessage(attempts: number): string {
   return `Data extraction attempt limit exceeded (${attempts} attempts).`;

@@ -26,6 +26,7 @@ export class KafkaConsumerTransportStrategy extends Server {
         kafkaJS: {
           groupId: 'lens-scraper-detail-scraper',
           sessionTimeout: this.sessionTimeout,
+          fromBeginning: true,
         },
       });
       this.consumer = consumer;
