@@ -13,24 +13,24 @@ class FakeConfigService {
   fileLockMaxWaitMs = 5000;
 }
 class FakeSiteConfigService {
-  recordsFilePattern = /^records_(.+)\.txt$/;
-  expiredRecordsFilename = 'records_expired.txt';
+  scrapedRecordsFilePattern = /^records_(.+)\.txt$/;
+  expiredScrapedRecordsFile = 'records_expired.txt';
   unknownLanguageBucket = 'xx';
-  recordDetailRootDir = '1_records_raw';
+  scrapedRecordDetailsDir = '1_records_raw';
   recordDetailCatalogDir = '1_records_catalog';
-  expiredRecordDetailDir = 'expired';
-  sourceDetailRootDir = '0_sources';
-  recordTitlesRootDir = '2_record_titles';
-  recordsFilteredRootDir = '3_records_filtered';
-  listingIdsFilename = 'listing-ids.txt';
-  rawListingIdsFilename = 'raw_listing_ids.txt';
-  listingIdsFilenameRecycled = 'listing-ids-recycled.txt';
-  listingIdsFilenameToScrape = 'listing-ids-to-scrape.txt';
-  failuresLogFilename = 'failures.log';
-  sourcesFilename = 'sources.txt';
-  recordTitlesRawFilename = '1_raw.txt';
-  recordTitlesDedupSortedFilename = '2_dedup_sorted.txt';
-  recordTitlesFilteredFilename = '3_filtered.txt';
+  expiredScrapedRecordsDir = 'expired';
+  sourceDetailDir = '0_sources';
+  recordTitlesDir = '2_record_titles';
+  recordsFilteredDir = '3_records_filtered';
+  listingIdsFile = 'listing-ids.txt';
+  rawListingIdsFile = 'raw_listing_ids.txt';
+  listingRecycledIdsFile = 'listing-ids-recycled.txt';
+  listingIdsToScrapeFile = 'listing-ids-to-scrape.txt';
+  failuresLogFile = 'failures.log';
+  sourcesFile = 'sources.txt';
+  rawRecordTitlesFile = '1_raw.txt';
+  dedupSortedRecordTitlesFile = '2_dedup_sorted.txt';
+  filteredRecordTitlesFile = '3_filtered.txt';
   deadLetterDir = 'dlq';
   deadLetterRecordIdsFilename(topic: string): string {
     return `${topic}.txt`;
@@ -38,7 +38,7 @@ class FakeSiteConfigService {
   deadLetterPayloadsFilename(topic: string): string {
     return `${topic}.jsonl`;
   }
-  recordsFilename(languageAlpha2: string): string {
+  scrapedRecordsFilename(languageAlpha2: string): string {
     return `records_${languageAlpha2}.txt`;
   }
 }

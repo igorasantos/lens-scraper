@@ -83,42 +83,42 @@ export class StorageService {
     return this.storage.read(key);
   }
   listingIdsPath(runId: string): string {
-    return join('runs', runId, this.siteConfig.listingIdsFilename);
+    return join('runs', runId, this.siteConfig.listingIdsFile);
   }
   rawListingIdsPath(runId: string): string {
-    return join('runs', runId, this.siteConfig.rawListingIdsFilename);
+    return join('runs', runId, this.siteConfig.rawListingIdsFile);
   }
   recycledListingIdsPath(runId: string): string {
-    return join('runs', runId, this.siteConfig.listingIdsFilenameRecycled);
+    return join('runs', runId, this.siteConfig.listingRecycledIdsFile);
   }
   toScrapeListingIdsPath(runId: string): string {
-    return join('runs', runId, this.siteConfig.listingIdsFilenameToScrape);
+    return join('runs', runId, this.siteConfig.listingIdsToScrapeFile);
   }
   recordsPath(languageAlpha2: string): string {
-    return this.siteConfig.recordsFilename(languageAlpha2);
+    return this.siteConfig.scrapedRecordsFilename(languageAlpha2);
   }
   sourcesPath(): string {
-    return this.siteConfig.sourcesFilename;
+    return this.siteConfig.sourcesFile;
   }
   sourceDetailPath(name: string): string {
-    return join(this.siteConfig.sourceDetailRootDir, `${name}.html`);
+    return join(this.siteConfig.sourceDetailDir, `${name}.html`);
   }
   recordDetailPath(languageAlpha2: string, recordId: string): string {
     return join(
-      this.siteConfig.recordDetailRootDir,
+      this.siteConfig.scrapedRecordDetailsDir,
       languageAlpha2,
       `${recordId}.html`,
     );
   }
   expiredRecordDetailPath(recordId: string): string {
     return join(
-      this.siteConfig.recordDetailRootDir,
-      this.siteConfig.expiredRecordDetailDir,
+      this.siteConfig.scrapedRecordDetailsDir,
+      this.siteConfig.expiredScrapedRecordsDir,
       `${recordId}.html`,
     );
   }
   failuresLogPath(runId: string): string {
-    return join('runs', runId, this.siteConfig.failuresLogFilename);
+    return join('runs', runId, this.siteConfig.failuresLogFile);
   }
   deadLetterRecordIdsPath(runId: string, topic: string): string {
     return join(
@@ -140,24 +140,24 @@ export class StorageService {
     return basename(key, '.html');
   }
   expiredRecordsPath(): string {
-    return this.siteConfig.expiredRecordsFilename;
+    return this.siteConfig.expiredScrapedRecordsFile;
   }
   rawRecordTitlesPath(): string {
     return join(
-      this.siteConfig.recordTitlesRootDir,
-      this.siteConfig.recordTitlesRawFilename,
+      this.siteConfig.recordTitlesDir,
+      this.siteConfig.rawRecordTitlesFile,
     );
   }
   dedupSortedRecordTitlesPath(): string {
     return join(
-      this.siteConfig.recordTitlesRootDir,
-      this.siteConfig.recordTitlesDedupSortedFilename,
+      this.siteConfig.recordTitlesDir,
+      this.siteConfig.dedupSortedRecordTitlesFile,
     );
   }
   filteredRecordTitlesPath(): string {
     return join(
-      this.siteConfig.recordTitlesRootDir,
-      this.siteConfig.recordTitlesFilteredFilename,
+      this.siteConfig.recordTitlesDir,
+      this.siteConfig.filteredRecordTitlesFile,
     );
   }
   async appendRawListingIds(runId: string, recordIds: string[]): Promise<void> {
@@ -182,7 +182,7 @@ export class StorageService {
   async readListingIds(runId: string): Promise<string[]> {
     const key = this.listingIdsPath(runId);
     return this.readLines(key, {
-      notFoundError: `No ${this.siteConfig.listingIdsFilename} found for run ${runId} (${key})`,
+      notFoundError: `No ${this.siteConfig.listingIdsFile} found for run ${runId} (${key})`,
     });
   }
   async readRecycledListingIds(runId: string): Promise<string[]> {
@@ -239,7 +239,7 @@ export class StorageService {
     entry: RecordDetailCatalogEntry,
   ): Promise<string> {
     const destKey =
-      entry.bucket === this.siteConfig.expiredRecordDetailDir
+      entry.bucket === this.siteConfig.expiredScrapedRecordsDir
         ? this.expiredRecordDetailPath(recordId)
         : this.recordDetailPath(entry.bucket, recordId);
     await this.storage.move(entry.key, destKey);
@@ -251,8 +251,8 @@ export class StorageService {
     const recordIds = new Set<string>();
     for (const entry of entries) {
       if (
-        entry === this.siteConfig.expiredRecordsFilename ||
-        !this.siteConfig.recordsFilePattern.test(entry)
+        entry === this.siteConfig.expiredScrapedRecordsFile ||
+        !this.siteConfig.scrapedRecordsFilePattern.test(entry)
       ) {
         continue;
       }
@@ -410,7 +410,9 @@ export class StorageService {
     return key;
   }
   async listRecordDetailHtmlFiles(): Promise<string[]> {
-    const keys = await this.storage.list(this.siteConfig.recordDetailRootDir);
+    const keys = await this.storage.list(
+      this.siteConfig.scrapedRecordDetailsDir,
+    );
     return keys.filter((key) => key.endsWith('.html'));
   }
   async resetRawRecordTitlesFile(): Promise<void> {
@@ -443,7 +445,7 @@ export class StorageService {
     return new Set(await this.readLines(this.filteredRecordTitlesPath()));
   }
   filteredRecordCopyPath(bucket: string, fileName: string): string {
-    return join(this.siteConfig.recordsFilteredRootDir, bucket, fileName);
+    return join(this.siteConfig.recordsFilteredDir, bucket, fileName);
   }
   async copyRecordDetailToFiltered(
     sourceKey: string,

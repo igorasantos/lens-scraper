@@ -37,24 +37,24 @@ export interface SiteConfig {
     stripElements: string[];
   };
   storage: {
-    recordsFilenameTemplate: string;
-    expiredRecordsFilename: string;
+    scrapedRecordsFilenameTemplate: string;
+    expiredScrapedRecordsFile: string;
     unknownLanguageBucket: string;
-    recordDetailRootDir: string;
+    scrapedRecordDetailsDir: string;
     recordDetailCatalogDir: string;
-    expiredRecordDetailDir: string;
-    sourceDetailRootDir: string;
-    recordTitlesRootDir: string;
-    recordsFilteredRootDir: string;
-    listingIdsFilename: string;
-    rawListingIdsFilename: string;
-    listingIdsFilenameRecycled: string;
-    listingIdsFilenameToScrape: string;
-    failuresLogFilename: string;
-    sourcesFilename: string;
-    recordTitlesRawFilename: string;
-    recordTitlesDedupSortedFilename: string;
-    recordTitlesFilteredFilename: string;
+    expiredScrapedRecordsDir: string;
+    sourceDetailDir: string;
+    recordTitlesDir: string;
+    recordsFilteredDir: string;
+    listingIdsFile: string;
+    rawListingIdsFile: string;
+    listingRecycledIdsFile: string;
+    listingIdsToScrapeFile: string;
+    failuresLogFile: string;
+    sourcesFile: string;
+    rawRecordTitlesFile: string;
+    dedupSortedRecordTitlesFile: string;
+    filteredRecordTitlesFile: string;
     deadLetterDir: string;
     deadLetterRecordIdsFilenameTemplate: string;
     deadLetterPayloadsFilenameTemplate: string;
@@ -90,24 +90,24 @@ const siteConfigSchema = Joi.object<SiteConfig>({
     stripElements: Joi.array().items(Joi.string()).required(),
   }).required(),
   storage: Joi.object({
-    recordsFilenameTemplate: Joi.string().required(),
-    expiredRecordsFilename: Joi.string().required(),
+    scrapedRecordsFilenameTemplate: Joi.string().required(),
+    expiredScrapedRecordsFile: Joi.string().required(),
     unknownLanguageBucket: Joi.string().required(),
-    recordDetailRootDir: Joi.string().required(),
+    scrapedRecordDetailsDir: Joi.string().required(),
     recordDetailCatalogDir: Joi.string().required(),
-    expiredRecordDetailDir: Joi.string().required(),
-    sourceDetailRootDir: Joi.string().required(),
-    recordTitlesRootDir: Joi.string().required(),
-    recordsFilteredRootDir: Joi.string().required(),
-    listingIdsFilename: Joi.string().required(),
-    rawListingIdsFilename: Joi.string().required(),
-    listingIdsFilenameRecycled: Joi.string().required(),
-    listingIdsFilenameToScrape: Joi.string().required(),
-    failuresLogFilename: Joi.string().required(),
-    sourcesFilename: Joi.string().required(),
-    recordTitlesRawFilename: Joi.string().required(),
-    recordTitlesDedupSortedFilename: Joi.string().required(),
-    recordTitlesFilteredFilename: Joi.string().required(),
+    expiredScrapedRecordsDir: Joi.string().required(),
+    sourceDetailDir: Joi.string().required(),
+    recordTitlesDir: Joi.string().required(),
+    recordsFilteredDir: Joi.string().required(),
+    listingIdsFile: Joi.string().required(),
+    rawListingIdsFile: Joi.string().required(),
+    listingRecycledIdsFile: Joi.string().required(),
+    listingIdsToScrapeFile: Joi.string().required(),
+    failuresLogFile: Joi.string().required(),
+    sourcesFile: Joi.string().required(),
+    rawRecordTitlesFile: Joi.string().required(),
+    dedupSortedRecordTitlesFile: Joi.string().required(),
+    filteredRecordTitlesFile: Joi.string().required(),
     deadLetterDir: Joi.string().required(),
     deadLetterRecordIdsFilenameTemplate: Joi.string()
       .pattern(/\{topic\}/)
@@ -177,65 +177,67 @@ export class SiteConfigService {
   get sanitizeStripElements(): string[] {
     return this.config.sanitize.stripElements;
   }
-  get recordsFilePattern(): RegExp {
-    return buildRecordsFilePattern(this.config.storage.recordsFilenameTemplate);
+  get scrapedRecordsFilePattern(): RegExp {
+    return buildRecordsFilePattern(
+      this.config.storage.scrapedRecordsFilenameTemplate,
+    );
   }
-  recordsFilename(languageAlpha2: string): string {
-    return this.config.storage.recordsFilenameTemplate.replace(
+  scrapedRecordsFilename(languageAlpha2: string): string {
+    return this.config.storage.scrapedRecordsFilenameTemplate.replace(
       '{lang}',
       languageAlpha2,
     );
   }
-  get expiredRecordsFilename(): string {
-    return this.config.storage.expiredRecordsFilename;
+  get expiredScrapedRecordsFile(): string {
+    return this.config.storage.expiredScrapedRecordsFile;
   }
   get unknownLanguageBucket(): string {
     return this.config.storage.unknownLanguageBucket;
   }
-  get recordDetailRootDir(): string {
-    return this.config.storage.recordDetailRootDir;
+  get scrapedRecordDetailsDir(): string {
+    return this.config.storage.scrapedRecordDetailsDir;
   }
   get recordDetailCatalogDir(): string {
     return this.config.storage.recordDetailCatalogDir;
   }
-  get expiredRecordDetailDir(): string {
-    return this.config.storage.expiredRecordDetailDir;
+  get expiredScrapedRecordsDir(): string {
+    return this.config.storage.expiredScrapedRecordsDir;
   }
-  get sourceDetailRootDir(): string {
-    return this.config.storage.sourceDetailRootDir;
+  get sourceDetailDir(): string {
+    return this.config.storage.sourceDetailDir;
   }
-  get recordTitlesRootDir(): string {
-    return this.config.storage.recordTitlesRootDir;
+  get recordTitlesDir(): string {
+    return this.config.storage.recordTitlesDir;
   }
-  get recordsFilteredRootDir(): string {
-    return this.config.storage.recordsFilteredRootDir;
+  get recordsFilteredDir(): string {
+    return this.config.storage.recordsFilteredDir;
   }
-  get listingIdsFilename(): string {
-    return this.config.storage.listingIdsFilename;
+  get listingIdsFile(): string {
+    return this.config.storage.listingIdsFile;
   }
-  get rawListingIdsFilename(): string {
-    return this.config.storage.rawListingIdsFilename;
+  get rawListingIdsFile(): string {
+    return this.config.storage.rawListingIdsFile;
   }
-  get listingIdsFilenameRecycled(): string {
-    return this.config.storage.listingIdsFilenameRecycled;
+  get listingRecycledIdsFile(): string {
+    return this.config.storage.listingRecycledIdsFile;
   }
-  get listingIdsFilenameToScrape(): string {
-    return this.config.storage.listingIdsFilenameToScrape;
+  get listingIdsToScrapeFile(): string {
+    return this.config.storage.listingIdsToScrapeFile;
   }
-  get failuresLogFilename(): string {
-    return this.config.storage.failuresLogFilename;
+  get failuresLogFile(): string {
+    return this.config.storage.failuresLogFile;
   }
-  get sourcesFilename(): string {
-    return this.config.storage.sourcesFilename;
+  get sourcesFile(): string {
+    return this.config.storage.sourcesFile;
   }
-  get recordTitlesRawFilename(): string {
-    return this.config.storage.recordTitlesRawFilename;
+  get rawRecordTitlesFile(): string {
+    return this.config.storage.rawRecordTitlesFile;
   }
-  get recordTitlesDedupSortedFilename(): string {
-    return this.config.storage.recordTitlesDedupSortedFilename;
+  get dedupSortedRecordTitlesFile(): string {
+    return this.config.storage.dedupSortedRecordTitlesFile;
   }
-  get recordTitlesFilteredFilename(): string {
-    return this.config.storage.recordTitlesFilteredFilename;
+  get filteredRecordTitlesFile(): string {
+    return this.config.storage.filteredRecordTitlesFile;
   }
   get deadLetterDir(): string {
     return this.config.storage.deadLetterDir;

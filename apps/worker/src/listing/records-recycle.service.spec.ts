@@ -16,7 +16,7 @@ describe('RecordsRecycleService', () => {
   let dispatch: {
     dispatchToScrape: ReturnType<typeof vi.fn>;
   };
-  const siteConfig = { expiredRecordDetailDir: 'expired' };
+  const siteConfig = { expiredScrapedRecordsDir: 'expired' };
   function catalogOf(
     entries: Record<string, RecordDetailCatalogEntry>,
   ): Map<string, RecordDetailCatalogEntry> {

@@ -29,24 +29,24 @@ const validConfig = {
     stripElements: ['script'],
   },
   storage: {
-    recordsFilenameTemplate: 'records_{lang}.txt',
-    expiredRecordsFilename: 'records_expired.txt',
+    scrapedRecordsFilenameTemplate: 'records_{lang}.txt',
+    expiredScrapedRecordsFile: 'records_expired.txt',
     unknownLanguageBucket: 'xx',
-    recordDetailRootDir: '1_records_raw',
+    scrapedRecordDetailsDir: '1_records_raw',
     recordDetailCatalogDir: '1_records_catalog',
-    expiredRecordDetailDir: 'expired',
-    sourceDetailRootDir: '0_sources',
-    recordTitlesRootDir: '2_record_titles',
-    recordsFilteredRootDir: '3_records_filtered',
-    listingIdsFilename: 'listing-ids.txt',
-    rawListingIdsFilename: 'raw_listing_ids.txt',
-    listingIdsFilenameRecycled: 'listing-ids-recycled.txt',
-    listingIdsFilenameToScrape: 'listing-ids-to-scrape.txt',
-    failuresLogFilename: 'failures.log',
-    sourcesFilename: 'sources.txt',
-    recordTitlesRawFilename: '1_raw.txt',
-    recordTitlesDedupSortedFilename: '2_dedup_sorted.txt',
-    recordTitlesFilteredFilename: '3_filtered.txt',
+    expiredScrapedRecordsDir: 'expired',
+    sourceDetailDir: '0_sources',
+    recordTitlesDir: '2_record_titles',
+    recordsFilteredDir: '3_records_filtered',
+    listingIdsFile: 'listing-ids.txt',
+    rawListingIdsFile: 'raw_listing_ids.txt',
+    listingRecycledIdsFile: 'listing-ids-recycled.txt',
+    listingIdsToScrapeFile: 'listing-ids-to-scrape.txt',
+    failuresLogFile: 'failures.log',
+    sourcesFile: 'sources.txt',
+    rawRecordTitlesFile: '1_raw.txt',
+    dedupSortedRecordTitlesFile: '2_dedup_sorted.txt',
+    filteredRecordTitlesFile: '3_filtered.txt',
     deadLetterDir: 'dlq',
     deadLetterRecordIdsFilenameTemplate: '{topic}.txt',
     deadLetterPayloadsFilenameTemplate: '{topic}.jsonl',
@@ -93,25 +93,23 @@ describe('SiteConfigService', () => {
     expect(service.expiredRecordMarker).toBe('not available');
     expect(service.sanitizeStripAttributes).toEqual(['class']);
     expect(service.sanitizeStripElements).toEqual(['script']);
-    expect(service.expiredRecordsFilename).toBe('records_expired.txt');
+    expect(service.expiredScrapedRecordsFile).toBe('records_expired.txt');
     expect(service.unknownLanguageBucket).toBe('xx');
-    expect(service.recordDetailRootDir).toBe('1_records_raw');
+    expect(service.scrapedRecordDetailsDir).toBe('1_records_raw');
     expect(service.recordDetailCatalogDir).toBe('1_records_catalog');
-    expect(service.expiredRecordDetailDir).toBe('expired');
-    expect(service.sourceDetailRootDir).toBe('0_sources');
-    expect(service.recordTitlesRootDir).toBe('2_record_titles');
-    expect(service.recordsFilteredRootDir).toBe('3_records_filtered');
-    expect(service.listingIdsFilename).toBe('listing-ids.txt');
-    expect(service.rawListingIdsFilename).toBe('raw_listing_ids.txt');
-    expect(service.listingIdsFilenameRecycled).toBe('listing-ids-recycled.txt');
-    expect(service.listingIdsFilenameToScrape).toBe(
-      'listing-ids-to-scrape.txt',
-    );
-    expect(service.failuresLogFilename).toBe('failures.log');
-    expect(service.sourcesFilename).toBe('sources.txt');
-    expect(service.recordTitlesRawFilename).toBe('1_raw.txt');
-    expect(service.recordTitlesDedupSortedFilename).toBe('2_dedup_sorted.txt');
-    expect(service.recordTitlesFilteredFilename).toBe('3_filtered.txt');
+    expect(service.expiredScrapedRecordsDir).toBe('expired');
+    expect(service.sourceDetailDir).toBe('0_sources');
+    expect(service.recordTitlesDir).toBe('2_record_titles');
+    expect(service.recordsFilteredDir).toBe('3_records_filtered');
+    expect(service.listingIdsFile).toBe('listing-ids.txt');
+    expect(service.rawListingIdsFile).toBe('raw_listing_ids.txt');
+    expect(service.listingRecycledIdsFile).toBe('listing-ids-recycled.txt');
+    expect(service.listingIdsToScrapeFile).toBe('listing-ids-to-scrape.txt');
+    expect(service.failuresLogFile).toBe('failures.log');
+    expect(service.sourcesFile).toBe('sources.txt');
+    expect(service.rawRecordTitlesFile).toBe('1_raw.txt');
+    expect(service.dedupSortedRecordTitlesFile).toBe('2_dedup_sorted.txt');
+    expect(service.filteredRecordTitlesFile).toBe('3_filtered.txt');
     expect(service.deadLetterDir).toBe('dlq');
   });
   it('fills the {topic} placeholder in both dead-letter filename templates', async () => {
@@ -153,15 +151,19 @@ describe('SiteConfigService', () => {
   it('derives the records filename from the language alpha2 code', async () => {
     const path = await writeConfig(validConfig);
     const service = new SiteConfigService(fakeConfigService(path));
-    expect(service.recordsFilename('en')).toBe('records_en.txt');
+    expect(service.scrapedRecordsFilename('en')).toBe('records_en.txt');
   });
-  it('derives a matching pattern from recordsFilenameTemplate', async () => {
+  it('derives a matching pattern from scrapedRecordsFilenameTemplate', async () => {
     const path = await writeConfig(validConfig);
     const service = new SiteConfigService(fakeConfigService(path));
-    expect(service.recordsFilePattern.test('records_en.txt')).toBe(true);
-    expect(service.recordsFilePattern.test('records_expired.txt')).toBe(true);
-    expect(service.recordsFilePattern.test('other.txt')).toBe(false);
-    expect('records_pt.txt'.match(service.recordsFilePattern)?.[1]).toBe('pt');
+    expect(service.scrapedRecordsFilePattern.test('records_en.txt')).toBe(true);
+    expect(service.scrapedRecordsFilePattern.test('records_expired.txt')).toBe(
+      true,
+    );
+    expect(service.scrapedRecordsFilePattern.test('other.txt')).toBe(false);
+    expect('records_pt.txt'.match(service.scrapedRecordsFilePattern)?.[1]).toBe(
+      'pt',
+    );
   });
   it('allows omitting auth for sites that need no login', async () => {
     const { auth: _auth, ...withoutAuth } = validConfig;

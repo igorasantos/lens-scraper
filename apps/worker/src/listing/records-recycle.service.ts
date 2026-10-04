@@ -34,7 +34,7 @@ export class RecordsRecycleService {
       }
       await this.recycle(runId, recordId, entry, alreadyRecycled);
       recycled.push(recordId);
-      if (entry.bucket === this.siteConfig.expiredRecordDetailDir) {
+      if (entry.bucket === this.siteConfig.expiredScrapedRecordsDir) {
         recycledExpired.push(recordId);
       }
     }
@@ -54,7 +54,7 @@ export class RecordsRecycleService {
     entry: RecordDetailCatalogEntry,
     alreadyRecycled: Set<string>,
   ): Promise<void> {
-    if (entry.bucket !== this.siteConfig.expiredRecordDetailDir) {
+    if (entry.bucket !== this.siteConfig.expiredScrapedRecordsDir) {
       await this.storage.appendRecordId(recordId, entry.bucket);
     }
     if (!alreadyRecycled.has(recordId)) {
