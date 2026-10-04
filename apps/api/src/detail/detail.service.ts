@@ -27,7 +27,7 @@ export class DetailService {
         `recordId must be numeric: ${invalid.join(', ')}`,
       );
     }
-    const scheduled = stampScheduledAt(recordIds);
+    const scheduled = stampScheduledAt([...new Set(recordIds)]);
     await this.queue.publishRecordDetailsBatch(scheduled);
     return scheduled.map(({ recordId, scheduledAt }) => ({
       recordId,

@@ -42,6 +42,22 @@ describe('DetailService', () => {
         { recordId: '456', scheduledAt: results[1].scheduledAt },
       ]);
     });
+    it('drops duplicate record ids before publishing, keeping first-seen order', async () => {
+      const service = await buildService();
+      const results = await service.queueRecordDetails([
+        '123',
+        '456',
+        '123',
+        '456',
+        '789',
+      ]);
+      expect(results.map((r) => r.recordId)).toEqual(['123', '456', '789']);
+      expect(queue.publishRecordDetailsBatch).toHaveBeenCalledWith([
+        { recordId: '123', scheduledAt: results[0].scheduledAt },
+        { recordId: '456', scheduledAt: results[0].scheduledAt },
+        { recordId: '789', scheduledAt: results[0].scheduledAt },
+      ]);
+    });
     it('stamps scheduledAt as the current dispatch time, not a future offset', async () => {
       const before = Date.now();
       const service = await buildService();
