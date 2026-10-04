@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@app/config';
 import { QueueService } from '@app/queue';
@@ -180,6 +181,20 @@ describe('ListingDispatchService', () => {
       expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
       expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
       expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
+    });
+    it('logs the full count message from received ids down to what is handed to recycling', async () => {
+      const log = vi
+        .spyOn(Logger.prototype, 'log')
+        .mockImplementation(() => {});
+      storage.readRecordIds.mockResolvedValue(new Set(['2']));
+      const service = await buildService();
+      await service.dispatch('run-1', ['1', '1', '2', '3', '3'], {
+        recycle: true,
+      });
+      expect(log).toHaveBeenCalledWith(
+        '[run-1] 5 record id(s) received - 2 duplicate(s) = 3 unique - 1 already in the scraped records control files = 2 record(s) handed to recycling before scraping.',
+      );
+      log.mockRestore();
     });
     it('does not hand anything to recycling when everything is already scraped', async () => {
       storage.readRecordIds.mockResolvedValue(new Set(['1']));

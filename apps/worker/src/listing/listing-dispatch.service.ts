@@ -31,21 +31,23 @@ export class ListingDispatchService {
     const toDispatch = uniqueRecordIds.filter((id) => !existing.has(id));
     const skipped = uniqueRecordIds.filter((id) => existing.has(id));
     await this.storage.writeListingIds(runId, toDispatch);
+    const duplicates = recordIds.length - uniqueRecordIds.length;
+    const countMessage = `${recordIds.length} record id(s) received - ${duplicates} duplicate(s) = ${uniqueRecordIds.length} unique - ${skipped.length} already in the scraped records control files`;
     if (toDispatch.length === 0) {
       this.logger.log(
-        `[${runId}] No new record ids to dispatch after skip (${skipped.length} already in the scraped records control files).`,
+        `[${runId}] ${countMessage} = 0 new record(s); nothing to dispatch.`,
       );
       return { dispatched: [], skipped, reclassified: [], deferred: [] };
     }
     if (recycle) {
       await this.queue.publishRecordsRecycle({ runId });
       this.logger.log(
-        `[${runId}] Skipped ${skipped.length} record(s) already in the scraped records control files; handed ${toDispatch.length} record(s) to recycling before scraping.`,
+        `[${runId}] ${countMessage} = ${toDispatch.length} record(s) handed to recycling before scraping.`,
       );
       return { dispatched: [], skipped, reclassified: [], deferred: [] };
     }
     this.logger.log(
-      `[${runId}] Skipped ${skipped.length} record(s) already in the scraped records control files; ${toDispatch.length} record(s) left to dispatch.`,
+      `[${runId}] ${countMessage} = ${toDispatch.length} record(s) left to dispatch.`,
     );
     const result = await this.dispatchToScrape(runId, toDispatch);
     return { ...result, skipped };
