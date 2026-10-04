@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { QueueService } from '@app/queue';
+import { StorageService } from '@app/storage';
 import { ApiModule } from './../src/api.module.js';
 describe('ApiModule (e2e)', () => {
   let app: INestApplication<App>;
@@ -11,17 +12,25 @@ describe('ApiModule (e2e)', () => {
     publishPendingReprocess: ReturnType<typeof vi.fn>;
     publishRecordDetailsBatch: ReturnType<typeof vi.fn>;
   };
+  let storage: {
+    readRecordIds: ReturnType<typeof vi.fn>;
+  };
   beforeEach(async () => {
     queue = {
       publishListingInit: vi.fn().mockResolvedValue(undefined),
       publishPendingReprocess: vi.fn().mockResolvedValue(undefined),
       publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined),
     };
+    storage = {
+      readRecordIds: vi.fn().mockResolvedValue(new Set()),
+    };
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [ApiModule],
     })
       .overrideProvider(QueueService)
       .useValue(queue)
+      .overrideProvider(StorageService)
+      .useValue(storage)
       .compile();
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -155,6 +164,24 @@ describe('ApiModule (e2e)', () => {
       expect(typeof response.body[0].scheduledAt).toBe('string');
       expect(queue.publishRecordDetailsBatch).toHaveBeenCalledWith([
         { recordId: '4242', scheduledAt: response.body[0].scheduledAt },
+      ]);
+    });
+    it('skips duplicates and record ids already scraped', async () => {
+      storage.readRecordIds.mockResolvedValue(new Set(['1111']));
+      const response = await request(app.getHttpServer())
+        .post('/scrape/records/details')
+        .send(['1111', '4242', '4242'])
+        .expect(202);
+      expect(response.body).toEqual([
+        { recordId: '1111', status: 'skipped' },
+        {
+          recordId: '4242',
+          status: 'queued',
+          scheduledAt: response.body[1].scheduledAt,
+        },
+      ]);
+      expect(queue.publishRecordDetailsBatch).toHaveBeenCalledWith([
+        { recordId: '4242', scheduledAt: response.body[1].scheduledAt },
       ]);
     });
     it('rejects an empty body', async () => {

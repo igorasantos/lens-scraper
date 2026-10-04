@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { QueueService, stampScheduledAt } from '@app/queue';
+import { StorageService } from '@app/storage';
 import { generateRunId } from '../common/run-id.util.js';
 import {
   RECORD_ID_PATTERN,
@@ -12,7 +13,10 @@ import type { XxReprocessResponseDto } from './dto/xx-reprocess-response.dto.js'
 @Injectable()
 /* v8 ignore stop */
 export class DetailService {
-  constructor(private readonly queue: QueueService) {}
+  constructor(
+    private readonly queue: QueueService,
+    private readonly storage: StorageService,
+  ) {}
   async queueRecordDetails(
     recordIds: RecordDetailsRequestDto,
   ): Promise<RecordDetailsResponseDto[]> {
@@ -27,13 +31,23 @@ export class DetailService {
         `recordId must be numeric: ${invalid.join(', ')}`,
       );
     }
-    const scheduled = stampScheduledAt([...new Set(recordIds)]);
-    await this.queue.publishRecordDetailsBatch(scheduled);
-    return scheduled.map(({ recordId, scheduledAt }) => ({
-      recordId,
-      status: 'queued' as const,
-      scheduledAt,
-    }));
+    const uniqueRecordIds = [...new Set(recordIds)];
+    const known = await this.storage.readRecordIds();
+    const scheduled = stampScheduledAt(
+      uniqueRecordIds.filter((recordId) => !known.has(recordId)),
+    );
+    if (scheduled.length > 0) {
+      await this.queue.publishRecordDetailsBatch(scheduled);
+    }
+    const scheduledAtById = new Map(
+      scheduled.map(({ recordId, scheduledAt }) => [recordId, scheduledAt]),
+    );
+    return uniqueRecordIds.map((recordId) => {
+      const scheduledAt = scheduledAtById.get(recordId);
+      return scheduledAt
+        ? { recordId, status: 'queued' as const, scheduledAt }
+        : { recordId, status: 'skipped' as const };
+    });
   }
   async reprocessExpiredRecords(): Promise<ExpiredReprocessResponseDto> {
     const runId = generateRunId();

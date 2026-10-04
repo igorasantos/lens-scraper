@@ -272,6 +272,14 @@ describe('StorageService', () => {
       '111\n222\n',
     );
   });
+  it('appendRecordId does not duplicate a record id already present in scraped_records_<alpha2>.txt', async () => {
+    await service.appendRecordId('111', 'en');
+    await service.appendRecordId('222', 'en');
+    await service.appendRecordId('111', 'en');
+    await expect(storage.read(service.recordsPath('en'))).resolves.toBe(
+      '111\n222\n',
+    );
+  });
   it('builds the sources.txt key directly under the data dir root', () => {
     expect(service.sourcesPath()).toBe('sources.txt');
   });
@@ -534,6 +542,14 @@ describe('StorageService', () => {
       await expect(service.removeExpiredRecord('111')).resolves.toBe(true);
       await expect(storage.read(service.expiredRecordsPath())).resolves.toBe(
         '222\n',
+      );
+    });
+    it('removeExpiredRecord also deletes the html left under the expired bucket', async () => {
+      await service.writeExpiredRecordDetail('111', '<div>expired</div>');
+      await service.appendExpiredRecord('111');
+      await service.removeExpiredRecord('111');
+      expect(storage.files.has(service.expiredRecordDetailPath('111'))).toBe(
+        false,
       );
     });
     it('removeExpiredRecord returns false and leaves the file untouched when the record id is absent', async () => {

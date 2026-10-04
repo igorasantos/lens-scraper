@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { QueueService } from '@app/queue';
+import { StorageService } from '@app/storage';
 import { DetailService } from './detail.service.js';
 describe('DetailService', () => {
   let queue: {
@@ -8,9 +9,16 @@ describe('DetailService', () => {
     publishExpiredReprocess: ReturnType<typeof vi.fn>;
     publishXxReprocess: ReturnType<typeof vi.fn>;
   };
+  let storage: {
+    readRecordIds: ReturnType<typeof vi.fn>;
+  };
   async function buildService(): Promise<DetailService> {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DetailService, { provide: QueueService, useValue: queue }],
+      providers: [
+        DetailService,
+        { provide: QueueService, useValue: queue },
+        { provide: StorageService, useValue: storage },
+      ],
     }).compile();
     return module.get<DetailService>(DetailService);
   }
@@ -19,6 +27,9 @@ describe('DetailService', () => {
       publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined),
       publishExpiredReprocess: vi.fn().mockResolvedValue(undefined),
       publishXxReprocess: vi.fn().mockResolvedValue(undefined),
+    };
+    storage = {
+      readRecordIds: vi.fn().mockResolvedValue(new Set()),
     };
   });
   describe('queueRecordDetails', () => {
@@ -58,12 +69,36 @@ describe('DetailService', () => {
         { recordId: '789', scheduledAt: results[0].scheduledAt },
       ]);
     });
+    it('skips record ids already in a scraped records control file (any language bucket, xx included)', async () => {
+      storage.readRecordIds.mockResolvedValue(new Set(['111', '222']));
+      const service = await buildService();
+      const results = await service.queueRecordDetails(['111', '444', '222']);
+      const scheduledAt = results[1].scheduledAt;
+      expect(results).toEqual([
+        { recordId: '111', status: 'skipped' },
+        { recordId: '444', status: 'queued', scheduledAt },
+        { recordId: '222', status: 'skipped' },
+      ]);
+      expect(queue.publishRecordDetailsBatch).toHaveBeenCalledWith([
+        { recordId: '444', scheduledAt },
+      ]);
+    });
+    it('does not publish when every record id is already scraped', async () => {
+      storage.readRecordIds.mockResolvedValue(new Set(['111', '222']));
+      const service = await buildService();
+      const results = await service.queueRecordDetails(['111', '222', '111']);
+      expect(results).toEqual([
+        { recordId: '111', status: 'skipped' },
+        { recordId: '222', status: 'skipped' },
+      ]);
+      expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
+    });
     it('stamps scheduledAt as the current dispatch time, not a future offset', async () => {
       const before = Date.now();
       const service = await buildService();
       const [result] = await service.queueRecordDetails(['123']);
       const after = Date.now();
-      const scheduledAtMs = new Date(result.scheduledAt).getTime();
+      const scheduledAtMs = new Date(result.scheduledAt!).getTime();
       expect(scheduledAtMs).toBeGreaterThanOrEqual(before);
       expect(scheduledAtMs).toBeLessThanOrEqual(after);
     });

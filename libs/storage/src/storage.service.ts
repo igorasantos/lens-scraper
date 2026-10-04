@@ -279,10 +279,14 @@ export class StorageService {
     recordId: string,
     languageAlpha2: string,
   ): Promise<void> {
-    await this.storage.append(
-      this.recordsPath(languageAlpha2),
-      `${recordId}\n`,
-    );
+    const key = this.recordsPath(languageAlpha2);
+    await this.withFileLock(key, async () => {
+      const existing = await this.readLines(key);
+      if (existing.includes(recordId)) {
+        return;
+      }
+      await this.storage.append(key, `${recordId}\n`);
+    });
   }
   async readSourceNames(): Promise<Set<string>> {
     return new Set(await this.readLines(this.sourcesPath()));
@@ -319,6 +323,7 @@ export class StorageService {
   }
   async removeExpiredRecord(recordId: string): Promise<boolean> {
     const key = this.expiredRecordsPath();
+    await this.storage.remove(this.expiredRecordDetailPath(recordId));
     return this.withFileLock(key, async () => {
       const existing = await this.readExpiredRecordIds();
       if (!existing.includes(recordId)) {
@@ -347,7 +352,6 @@ export class StorageService {
     html: string,
   ): Promise<void> {
     await this.writeRecordDetail(languageAlpha2, recordId, html);
-    await this.storage.remove(this.expiredRecordDetailPath(recordId));
     await this.removeExpiredRecord(recordId);
     await this.appendRecordId(recordId, languageAlpha2);
     if (languageAlpha2 !== this.siteConfig.unknownLanguageBucket) {
