@@ -13,7 +13,7 @@ http:
     type: json
     data: |-
       {
-        "recycle": false
+        "recycle": true
       }
 
 runtime:

@@ -33,21 +33,21 @@ export class ListingDispatchService {
     await this.storage.writeListingIds(runId, toDispatch);
     if (toDispatch.length === 0) {
       this.logger.log(
-        `[${runId}] No new record ids to dispatch after dedupe (${skipped.length} already scraped).`,
+        `[${runId}] No new record ids to dispatch after skip (${skipped.length} already in the scraped records control files).`,
       );
       return { dispatched: [], skipped, reclassified: [], deferred: [] };
     }
     if (recycle) {
       await this.queue.publishRecordsRecycle({ runId });
       this.logger.log(
-        `[${runId}] Handed ${toDispatch.length} record(s) to recycling before scraping, skipped ${skipped.length} already-scraped record(s).`,
+        `[${runId}] Skipped ${skipped.length} record(s) already in the scraped records control files; handed ${toDispatch.length} record(s) to recycling before scraping.`,
       );
       return { dispatched: [], skipped, reclassified: [], deferred: [] };
     }
-    const result = await this.dispatchToScrape(runId, toDispatch);
     this.logger.log(
-      `[${runId}] Skipped ${skipped.length} already-scraped record(s).`,
+      `[${runId}] Skipped ${skipped.length} record(s) already in the scraped records control files; ${toDispatch.length} record(s) left to dispatch.`,
     );
+    const result = await this.dispatchToScrape(runId, toDispatch);
     return { ...result, skipped };
   }
   async dispatchToScrape(
