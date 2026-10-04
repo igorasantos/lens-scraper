@@ -3,10 +3,12 @@ export interface ListingInitMessage {
   runId: string;
   baseUrl: string;
   startPage?: number;
+  recycle?: boolean;
 }
 export interface PendingReprocessMessage {
   runId: string;
   fromRunId: string;
+  recycle?: boolean;
 }
 export interface ListingPageMessage {
   runId: string;
@@ -15,6 +17,10 @@ export interface ListingPageMessage {
   recordIds: string[];
   lockToken: string;
   scheduledAt: string;
+  recycle?: boolean;
+}
+export interface RecordsRecycleMessage {
+  runId: string;
 }
 export interface RecordDetailMessage {
   recordId: string;

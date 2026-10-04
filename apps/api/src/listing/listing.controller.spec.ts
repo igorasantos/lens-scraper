@@ -33,9 +33,11 @@ describe('ListingController', () => {
   });
   it('delegates pending reprocess to the service and returns its result', async () => {
     const fromRunId = '11111111-1111-4111-8111-111111111111';
-    const result = await controller.reprocessPendingRecords(fromRunId);
+    const dto = { recycle: true };
+    const result = await controller.reprocessPendingRecords(fromRunId, dto);
     expect(listingService.reprocessPendingRecords).toHaveBeenCalledWith(
       fromRunId,
+      dto,
     );
     expect(result).toEqual({
       runId: 'run-2',

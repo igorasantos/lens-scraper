@@ -1,14 +1,16 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { App } from 'supertest/types';
 import { ConfigService } from '@app/config';
 import { QUEUE_PORT, QueueService } from '@app/queue';
+import { SiteConfigService } from '@app/site';
 import { StorageService } from '@app/storage';
 import { WorkerModule } from './../src/worker.module.js';
 import { TitlesController } from './../src/titles/titles.controller.js';
+import { ListingController } from './../src/listing/listing.controller.js';
 
 function buildTestConfig(localStorageDir: string): ConfigService {
   return {
@@ -45,11 +47,23 @@ function buildTestConfig(localStorageDir: string): ConfigService {
 describe('WorkerModule (e2e)', () => {
   let app: INestApplication<App>;
   let controller: TitlesController;
+  let listingController: ListingController;
   let storage: StorageService;
+  let siteConfig: SiteConfigService;
   let storageDir: string;
+  let queue: {
+    publishRecordTitleExtractsBatch: ReturnType<typeof vi.fn>;
+    publishRecordDetailsBatch: ReturnType<typeof vi.fn>;
+    publishRecordLanguageClassifyBatch: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
     storageDir = await mkdtemp(join(tmpdir(), 'lens-scraper-worker-e2e-'));
+    queue = {
+      publishRecordTitleExtractsBatch: vi.fn().mockResolvedValue(undefined),
+      publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined),
+      publishRecordLanguageClassifyBatch: vi.fn().mockResolvedValue(undefined),
+    };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [WorkerModule],
@@ -57,16 +71,16 @@ describe('WorkerModule (e2e)', () => {
       .overrideProvider(ConfigService)
       .useValue(buildTestConfig(storageDir))
       .overrideProvider(QueueService)
-      .useValue({
-        publishRecordTitleExtractsBatch: vi.fn().mockResolvedValue(undefined),
-      })
+      .useValue(queue)
       .overrideProvider(QUEUE_PORT)
       .useValue({ publish: vi.fn().mockResolvedValue(undefined) })
       .compile();
     app = moduleFixture.createNestApplication();
     await app.init();
     controller = app.get(TitlesController);
+    listingController = app.get(ListingController);
     storage = app.get(StorageService);
+    siteConfig = app.get(SiteConfigService);
   });
 
   afterEach(async () => {
@@ -94,6 +108,61 @@ describe('WorkerModule (e2e)', () => {
       expect(await storage.readFilteredRecordTitles()).toEqual(
         new Set(['Gadget Beta', 'Gizmo Gamma']),
       );
+    });
+  });
+  describe('record detail catalog recycling', () => {
+    async function writeCatalogFile(
+      relativePath: string,
+      html: string,
+    ): Promise<string> {
+      const filePath = join(
+        storageDir,
+        siteConfig.recordDetailCatalogDir,
+        relativePath,
+      );
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, html);
+      return filePath;
+    }
+    it('moves catalog hits into the record detail buckets and only dispatches the rest for scraping', async () => {
+      const runId = 'run-e2e-recycle';
+      await storage.writeListingIds(runId, ['1', '2', '3']);
+      const catalogEn = await writeCatalogFile('en/2.html', '<div>2</div>');
+      const catalogPt = await writeCatalogFile(
+        'batch-a/pt/3.html',
+        '<div>3</div>',
+      );
+      await writeCatalogFile('en/99.html', '<div>99</div>');
+
+      await listingController.handleRecordsRecycle({ runId });
+
+      expect(await storage.readRecycledListingIds(runId)).toEqual(['2', '3']);
+      expect(await storage.read(storage.toScrapeListingIdsPath(runId))).toBe(
+        '1\n',
+      );
+      expect(await storage.read(storage.recordDetailPath('en', '2'))).toBe(
+        '<div>2</div>',
+      );
+      expect(await storage.read(storage.recordDetailPath('pt', '3'))).toBe(
+        '<div>3</div>',
+      );
+      await expect(readFile(catalogEn)).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+      await expect(readFile(catalogPt)).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+      const recordIds = await storage.readRecordIds();
+      expect(recordIds.has('2')).toBe(true);
+      expect(recordIds.has('3')).toBe(true);
+      expect(recordIds.has('1')).toBe(false);
+      expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
+      expect(
+        queue.publishRecordDetailsBatch.mock.calls[0][0].map(
+          (entry: { recordId: string }) => entry.recordId,
+        ),
+      ).toEqual(['1']);
+      expect((await storage.readRecordDetailCatalog()).has('99')).toBe(true);
     });
   });
 });

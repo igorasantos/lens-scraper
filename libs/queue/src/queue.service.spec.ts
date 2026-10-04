@@ -13,6 +13,7 @@ import {
   SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC,
   SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
   SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
+  SCRAPE_RECORDS_RECYCLE_TOPIC,
   SCRAPE_LISTING_INIT_TOPIC,
   SCRAPE_LISTING_PAGE_TOPIC,
 } from './topics.js';
@@ -59,6 +60,14 @@ describe('QueueService', () => {
     await service.publishListingPage(message);
     expect(queuePort.publish).toHaveBeenCalledWith(
       SCRAPE_LISTING_PAGE_TOPIC,
+      message,
+    );
+  });
+  it('publishes a records recycle message to the records recycle topic', async () => {
+    const message = { runId: 'run-1' };
+    await service.publishRecordsRecycle(message);
+    expect(queuePort.publish).toHaveBeenCalledWith(
+      SCRAPE_RECORDS_RECYCLE_TOPIC,
       message,
     );
   });

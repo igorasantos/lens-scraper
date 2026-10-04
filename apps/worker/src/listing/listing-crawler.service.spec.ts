@@ -125,11 +125,25 @@ describe('ListingCrawlerService', () => {
       const [published] = queue.publishListingPage.mock.calls[0];
       expect(published).toMatchObject({ pagesVisited: 3 });
     });
+    it('carries the recycle flag on every published page and into dispatch', async () => {
+      site.extractRecordIds.mockResolvedValue(['1']);
+      const service = await buildService();
+      await service.start('run-1', baseUrl, 1, true);
+      const [published] = queue.publishListingPage.mock.calls[0];
+      expect(published).toMatchObject({ recycle: true });
+      config.maxListingPages = 1;
+      await service.start('run-2', baseUrl, 1, true);
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1'], {
+        recycle: true,
+      });
+    });
     it('dispatches and releases the lock immediately when the first page is already empty', async () => {
       site.extractRecordIds.mockResolvedValue([]);
       const service = await buildService();
       await service.start('run-1', baseUrl);
-      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', []);
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', [], {
+        recycle: false,
+      });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
       expect(queue.publishListingPage).not.toHaveBeenCalled();
     });
@@ -139,7 +153,9 @@ describe('ListingCrawlerService', () => {
       const service = await buildService();
       await service.start('run-1', baseUrl);
       expect(queue.publishListingPage).not.toHaveBeenCalled();
-      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1']);
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1'], {
+        recycle: false,
+      });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
     });
     it('dispatches immediately without touching the browser when MAX_LISTING_PAGES is 0', async () => {
@@ -147,7 +163,9 @@ describe('ListingCrawlerService', () => {
       const service = await buildService();
       await service.start('run-1', baseUrl);
       expect(browser.newPage).not.toHaveBeenCalled();
-      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', []);
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', [], {
+        recycle: false,
+      });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
     });
     it('closes the page and releases the lock if extraction throws', async () => {
@@ -176,7 +194,7 @@ describe('ListingCrawlerService', () => {
     };
     async function runContinuePage(
       service: ListingCrawlerService,
-      message: typeof baseMessage,
+      message: typeof baseMessage & { recycle?: boolean },
     ): Promise<void> {
       vi.useFakeTimers();
       const done = service.continuePage(message);
@@ -228,8 +246,18 @@ describe('ListingCrawlerService', () => {
       site.extractRecordIds.mockResolvedValue([]);
       const service = await buildService();
       await runContinuePage(service, baseMessage);
-      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1', '2']);
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1', '2'], {
+        recycle: false,
+      });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
+    });
+    it('dispatches with the recycle flag carried by the page message', async () => {
+      site.extractRecordIds.mockResolvedValue([]);
+      const service = await buildService();
+      await runContinuePage(service, { ...baseMessage, recycle: true });
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1', '2'], {
+        recycle: true,
+      });
     });
     it('throws without touching the browser when the lock was lost between pages', async () => {
       lock.extend.mockResolvedValue(false);

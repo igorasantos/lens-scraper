@@ -8,11 +8,13 @@ describe('ApiModule (e2e)', () => {
   let app: INestApplication<App>;
   let queue: {
     publishListingInit: ReturnType<typeof vi.fn>;
+    publishPendingReprocess: ReturnType<typeof vi.fn>;
     publishRecordDetailsBatch: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
     queue = {
       publishListingInit: vi.fn().mockResolvedValue(undefined),
+      publishPendingReprocess: vi.fn().mockResolvedValue(undefined),
       publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined),
     };
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -59,6 +61,25 @@ describe('ApiModule (e2e)', () => {
         startPage: 3,
       });
     });
+    it('accepts and forwards a recycle flag', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/scrape/listing/init')
+        .send({ baseUrl: 'https://example.com/search', recycle: true })
+        .expect(202);
+      expect(queue.publishListingInit).toHaveBeenCalledWith({
+        runId: response.body.runId,
+        baseUrl: 'https://example.com/search',
+        startPage: undefined,
+        recycle: true,
+      });
+    });
+    it('rejects a non-boolean recycle flag', async () => {
+      await request(app.getHttpServer())
+        .post('/scrape/listing/init')
+        .send({ baseUrl: 'https://example.com/search', recycle: 'yes' })
+        .expect(400);
+      expect(queue.publishListingInit).not.toHaveBeenCalled();
+    });
     it('rejects a negative startPage', async () => {
       await request(app.getHttpServer())
         .post('/scrape/listing/init')
@@ -86,6 +107,40 @@ describe('ApiModule (e2e)', () => {
         .post('/scrape/listing/init')
         .send({ baseUrl: 123 })
         .expect(400);
+    });
+  });
+  describe('POST /scrape/records/pending/:fromRunId/reprocess', () => {
+    it('202s without a body and publishes without recycling', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/scrape/records/pending/run-1/reprocess')
+        .expect(202);
+      expect(response.body).toMatchObject({
+        fromRunId: 'run-1',
+        status: 'queued',
+      });
+      expect(queue.publishPendingReprocess).toHaveBeenCalledWith({
+        runId: response.body.runId,
+        fromRunId: 'run-1',
+        recycle: undefined,
+      });
+    });
+    it('accepts and forwards a recycle flag', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/scrape/records/pending/run-1/reprocess')
+        .send({ recycle: true })
+        .expect(202);
+      expect(queue.publishPendingReprocess).toHaveBeenCalledWith({
+        runId: response.body.runId,
+        fromRunId: 'run-1',
+        recycle: true,
+      });
+    });
+    it('rejects a non-boolean recycle flag', async () => {
+      await request(app.getHttpServer())
+        .post('/scrape/records/pending/run-1/reprocess')
+        .send({ recycle: 'yes' })
+        .expect(400);
+      expect(queue.publishPendingReprocess).not.toHaveBeenCalled();
     });
   });
   describe('POST /scrape/records/details', () => {

@@ -1,8 +1,24 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { ConfigService } from '@app/config';
 import { LocalFilesystemStorageAdapter } from './local-filesystem-storage.adapter.js';
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  return { ...actual, rename: vi.fn(actual.rename) };
+});
+function errnoError(code: string): NodeJS.ErrnoException {
+  const error = new Error(code) as NodeJS.ErrnoException;
+  error.code = code;
+  return error;
+}
 describe('LocalFilesystemStorageAdapter', () => {
   let localStorageDir: string;
   let adapter: LocalFilesystemStorageAdapter;
@@ -116,6 +132,49 @@ describe('LocalFilesystemStorageAdapter', () => {
     await expect(adapter.read('1_records_raw/en/111.html')).resolves.toBe(
       '<div>111</div>',
     );
+  });
+  it('move() moves the source into the destination, creating parent directories, removing the source', async () => {
+    await adapter.write('1_records_catalog/en/111.html', '<div>111</div>');
+    await adapter.move(
+      '1_records_catalog/en/111.html',
+      '1_records_raw/en/111.html',
+    );
+    await expect(adapter.read('1_records_raw/en/111.html')).resolves.toBe(
+      '<div>111</div>',
+    );
+    await expect(adapter.exists('1_records_catalog/en/111.html')).resolves.toBe(
+      false,
+    );
+  });
+  it('move() overwrites an existing destination', async () => {
+    await adapter.write('1_records_catalog/en/111.html', 'new');
+    await adapter.write('1_records_raw/en/111.html', 'old');
+    await adapter.move(
+      '1_records_catalog/en/111.html',
+      '1_records_raw/en/111.html',
+    );
+    await expect(adapter.read('1_records_raw/en/111.html')).resolves.toBe(
+      'new',
+    );
+  });
+  it('move() falls back to copy + unlink when the source and destination are on different devices', async () => {
+    vi.mocked(rename).mockRejectedValueOnce(errnoError('EXDEV'));
+    await adapter.write('1_records_catalog/en/111.html', '<div>111</div>');
+    await adapter.move(
+      '1_records_catalog/en/111.html',
+      '1_records_raw/en/111.html',
+    );
+    await expect(adapter.read('1_records_raw/en/111.html')).resolves.toBe(
+      '<div>111</div>',
+    );
+    await expect(adapter.exists('1_records_catalog/en/111.html')).resolves.toBe(
+      false,
+    );
+  });
+  it('move() rejects with ENOENT when the source does not exist', async () => {
+    await expect(
+      adapter.move('missing.html', '1_records_raw/en/missing.html'),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
   });
   it('resolves keys against localStorageDir, not the process cwd', async () => {
     await mkdir(dirname(join(localStorageDir, 'nested', 'file.txt')), {

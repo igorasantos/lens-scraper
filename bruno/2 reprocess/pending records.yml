@@ -6,6 +6,15 @@ info:
 http:
   method: POST
   url: "{{baseUrl}}/scrape/records/pending/{{fromRunId}}/reprocess"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "recycle": false
+      }
 
 runtime:
   variables:

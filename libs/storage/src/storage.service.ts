@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { basename, join } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import { ConfigService } from '@app/config';
 import { SiteConfigService } from '@app/site';
 import { LOCK_KEY_PREFIX, LOCK_PORT, type LockPort } from '@app/redis-lock';
@@ -9,6 +9,10 @@ export interface FailureLogEntry {
   recordId: string;
   reason: string;
   attempts: number;
+}
+export interface RecordDetailCatalogEntry {
+  key: string;
+  bucket: string;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -75,6 +79,12 @@ export class StorageService {
   rawListingIdsPath(runId: string): string {
     return join('runs', runId, this.siteConfig.rawListingIdsFilename);
   }
+  recycledListingIdsPath(runId: string): string {
+    return join('runs', runId, this.siteConfig.listingIdsFilenameRecycled);
+  }
+  toScrapeListingIdsPath(runId: string): string {
+    return join('runs', runId, this.siteConfig.listingIdsFilenameToScrape);
+  }
   recordsPath(languageAlpha2: string): string {
     return this.siteConfig.recordsFilename(languageAlpha2);
   }
@@ -140,6 +150,73 @@ export class StorageService {
     const key = this.listingIdsPath(runId);
     await this.storage.write(key, recordIds.map((id) => `${id}\n`).join(''));
     this.logger.debug(`Wrote ${recordIds.length} record id(s) to ${key}`);
+  }
+  async readListingIds(runId: string): Promise<string[]> {
+    const key = this.listingIdsPath(runId);
+    return this.readLines(key, {
+      notFoundError: `No ${this.siteConfig.listingIdsFilename} found for run ${runId} (${key})`,
+    });
+  }
+  async readRecycledListingIds(runId: string): Promise<string[]> {
+    return this.readLines(this.recycledListingIdsPath(runId));
+  }
+  async appendRecycledListingId(
+    runId: string,
+    recordId: string,
+  ): Promise<void> {
+    await this.storage.append(
+      this.recycledListingIdsPath(runId),
+      `${recordId}\n`,
+    );
+  }
+  async writeToScrapeListingIds(
+    runId: string,
+    recordIds: string[],
+  ): Promise<void> {
+    const key = this.toScrapeListingIdsPath(runId);
+    await this.storage.write(key, recordIds.map((id) => `${id}\n`).join(''));
+    this.logger.debug(`Wrote ${recordIds.length} record id(s) to ${key}`);
+  }
+  async readRecordDetailCatalog(): Promise<
+    Map<string, RecordDetailCatalogEntry>
+  > {
+    const rootDir = this.siteConfig.recordDetailCatalogDir;
+    const keys = await this.storage.list(rootDir);
+    const catalog = new Map<string, RecordDetailCatalogEntry>();
+    for (const key of keys) {
+      if (!key.endsWith('.html')) {
+        continue;
+      }
+      const recordId = basename(key, '.html');
+      const existing = catalog.get(recordId);
+      if (existing) {
+        this.logger.warn(
+          `Record ${recordId} appears more than once under ${rootDir}; keeping ${existing.key}, ignoring ${key}`,
+        );
+        continue;
+      }
+      const parentDir = dirname(relative(rootDir, key));
+      catalog.set(recordId, {
+        key,
+        bucket:
+          parentDir === '.'
+            ? this.siteConfig.unknownLanguageBucket
+            : basename(parentDir),
+      });
+    }
+    return catalog;
+  }
+  async recycleRecordDetail(
+    recordId: string,
+    entry: RecordDetailCatalogEntry,
+  ): Promise<string> {
+    const destKey =
+      entry.bucket === this.siteConfig.expiredRecordDetailDir
+        ? this.expiredRecordDetailPath(recordId)
+        : this.recordDetailPath(entry.bucket, recordId);
+    await this.storage.move(entry.key, destKey);
+    this.logger.debug(`Moved ${entry.key} to ${destKey}`);
+    return destKey;
   }
   async readRecordIds(): Promise<Set<string>> {
     const entries = await this.storage.list('', { recursive: false });

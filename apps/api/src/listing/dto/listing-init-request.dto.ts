@@ -1,6 +1,13 @@
 /* v8 ignore file */
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsNotEmpty, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsNotEmpty,
+  Min,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 export class ListingInitRequestDto {
   @ApiPropertyOptional()
@@ -14,4 +21,8 @@ export class ListingInitRequestDto {
   @IsInt()
   @Min(1)
   startPage?: number;
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  recycle?: boolean;
 }

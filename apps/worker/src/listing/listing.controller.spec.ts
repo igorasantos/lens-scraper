@@ -3,6 +3,7 @@ import { ConfigService } from '@app/config';
 import { DeadLetterService, QUEUE_PORT } from '@app/queue';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { PendingReprocessService } from './pending-reprocess.service.js';
+import { RecordsRecycleService } from './records-recycle.service.js';
 import { ListingController } from './listing.controller.js';
 describe('ListingController', () => {
   let listingController: ListingController;
@@ -11,6 +12,9 @@ describe('ListingController', () => {
     continuePage: ReturnType<typeof vi.fn>;
   };
   let pendingReprocess: {
+    run: ReturnType<typeof vi.fn>;
+  };
+  let recordsRecycle: {
     run: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
@@ -24,11 +28,15 @@ describe('ListingController', () => {
         skipped: [],
       }),
     };
+    recordsRecycle = {
+      run: vi.fn().mockResolvedValue(undefined),
+    };
     const app: TestingModule = await Test.createTestingModule({
       controllers: [ListingController],
       providers: [
         { provide: ListingCrawlerService, useValue: listingCrawler },
         { provide: PendingReprocessService, useValue: pendingReprocess },
+        { provide: RecordsRecycleService, useValue: recordsRecycle },
         DeadLetterService,
         { provide: QUEUE_PORT, useValue: { publish: vi.fn() } },
         {
@@ -47,6 +55,7 @@ describe('ListingController', () => {
         'run-1',
         'https://example.com',
         undefined,
+        undefined,
       );
     });
     it('passes startPage through to ListingCrawlerService.start', async () => {
@@ -60,6 +69,21 @@ describe('ListingController', () => {
         'run-1',
         'https://example.com',
         3,
+        undefined,
+      );
+    });
+    it('passes recycle through to ListingCrawlerService.start', async () => {
+      const message = {
+        runId: 'run-1',
+        baseUrl: 'https://example.com',
+        recycle: true,
+      };
+      await listingController.handleListingInit(message);
+      expect(listingCrawler.start).toHaveBeenCalledWith(
+        'run-1',
+        'https://example.com',
+        undefined,
+        true,
       );
     });
   });
@@ -81,7 +105,22 @@ describe('ListingController', () => {
     it('delegates to PendingReprocessService', async () => {
       const message = { runId: 'run-2', fromRunId: 'run-1' };
       await listingController.handlePendingReprocess(message);
-      expect(pendingReprocess.run).toHaveBeenCalledWith('run-2', 'run-1');
+      expect(pendingReprocess.run).toHaveBeenCalledWith(
+        'run-2',
+        'run-1',
+        undefined,
+      );
+    });
+    it('passes recycle through to PendingReprocessService', async () => {
+      const message = { runId: 'run-2', fromRunId: 'run-1', recycle: true };
+      await listingController.handlePendingReprocess(message);
+      expect(pendingReprocess.run).toHaveBeenCalledWith('run-2', 'run-1', true);
+    });
+  });
+  describe('handleRecordsRecycle', () => {
+    it('delegates to RecordsRecycleService', async () => {
+      await listingController.handleRecordsRecycle({ runId: 'run-1' });
+      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1');
     });
   });
 });

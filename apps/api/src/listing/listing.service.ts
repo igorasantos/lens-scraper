@@ -5,7 +5,10 @@ import { generateRunId } from '../common/run-id.util.js';
 import type { ListingInitRequestDto } from './dto/listing-init-request.dto.js';
 import type { ListingInitResponseDto } from './dto/listing-init-response.dto.js';
 import type { PendingReprocessResponseDto } from './dto/pending-reprocess-response.dto.js';
-import { RUN_ID_PATTERN } from './dto/pending-reprocess-request.dto.js';
+import {
+  RUN_ID_PATTERN,
+  type PendingReprocessRequestDto,
+} from './dto/pending-reprocess-request.dto.js';
 /* v8 ignore start */
 @Injectable()
 /* v8 ignore stop */
@@ -28,11 +31,13 @@ export class ListingService {
       runId,
       baseUrl,
       startPage: dto.startPage,
+      recycle: dto.recycle,
     });
     return { runId, status: 'queued' };
   }
   async reprocessPendingRecords(
     fromRunId: string,
+    dto: PendingReprocessRequestDto = {},
   ): Promise<PendingReprocessResponseDto> {
     if (!RUN_ID_PATTERN.test(fromRunId)) {
       throw new BadRequestException(
@@ -40,7 +45,11 @@ export class ListingService {
       );
     }
     const runId = generateRunId();
-    await this.queue.publishPendingReprocess({ runId, fromRunId });
+    await this.queue.publishPendingReprocess({
+      runId,
+      fromRunId,
+      recycle: dto.recycle,
+    });
     return { runId, fromRunId, status: 'queued' };
   }
 }

@@ -15,6 +15,7 @@ http:
       {
       //   "baseUrl": ""
       //   "startPage": 1
+      //   "recycle": true
       }
 
 settings:

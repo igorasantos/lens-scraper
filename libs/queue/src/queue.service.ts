@@ -7,6 +7,7 @@ import type {
   RecordFilterCopyMessage,
   RecordLanguageClassifyMessage,
   RecordsFilterMessage,
+  RecordsRecycleMessage,
   RecordTitleExtractMessage,
   RecordTitlesDedupSortMessage,
   RecordTitlesExtractMessage,
@@ -25,6 +26,7 @@ import {
   SCRAPE_RECORD_TITLES_FILTER_TOPIC,
   SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC,
   SCRAPE_RECORDS_FILTER_TOPIC,
+  SCRAPE_RECORDS_RECYCLE_TOPIC,
   SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC,
   SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
   SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
@@ -46,6 +48,9 @@ export class QueueService {
   }
   publishListingPage(message: ListingPageMessage): Promise<void> {
     return this.emit(SCRAPE_LISTING_PAGE_TOPIC, message);
+  }
+  publishRecordsRecycle(message: RecordsRecycleMessage): Promise<void> {
+    return this.emit(SCRAPE_RECORDS_RECYCLE_TOPIC, message);
   }
   publishRecordDetailsBatch(messages: RecordDetailMessage[]): Promise<void> {
     return this.publishBatch(SCRAPE_RECORD_DETAIL_TOPIC, messages);

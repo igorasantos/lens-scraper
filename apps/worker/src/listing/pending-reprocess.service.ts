@@ -12,8 +12,12 @@ export class PendingReprocessService {
     private readonly storage: StorageService,
     private readonly dispatch: ListingDispatchService,
   ) {}
-  async run(runId: string, fromRunId: string): Promise<ListingDispatchResult> {
+  async run(
+    runId: string,
+    fromRunId: string,
+    recycle = false,
+  ): Promise<ListingDispatchResult> {
     const recordIds = await this.storage.readRawListingIds(fromRunId);
-    return this.dispatch.dispatch(runId, recordIds);
+    return this.dispatch.dispatch(runId, recordIds, { recycle });
   }
 }

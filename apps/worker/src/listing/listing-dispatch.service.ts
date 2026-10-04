@@ -2,11 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@app/config';
 import { stampScheduledAt, QueueService } from '@app/queue';
 import { StorageService } from '@app/storage';
-export interface ListingDispatchResult {
+export interface ScrapeDispatchResult {
   dispatched: string[];
-  skipped: string[];
   reclassified: string[];
   deferred: string[];
+}
+export interface ListingDispatchResult extends ScrapeDispatchResult {
+  skipped: string[];
+}
+export interface ListingDispatchOptions {
+  recycle?: boolean;
 }
 @Injectable()
 export class ListingDispatchService {
@@ -19,6 +24,7 @@ export class ListingDispatchService {
   async dispatch(
     runId: string,
     recordIds: string[],
+    { recycle = false }: ListingDispatchOptions = {},
   ): Promise<ListingDispatchResult> {
     const existing = await this.storage.readRecordIds();
     const uniqueRecordIds = [...new Set(recordIds)];
@@ -31,11 +37,28 @@ export class ListingDispatchService {
       );
       return { dispatched: [], skipped, reclassified: [], deferred: [] };
     }
-    const expiredFlags = await Promise.all(
-      toDispatch.map((id) => this.storage.hasExpiredRecordDetail(id)),
+    if (recycle) {
+      await this.queue.publishRecordsRecycle({ runId });
+      this.logger.log(
+        `[${runId}] Handed ${toDispatch.length} record(s) to recycling before scraping, skipped ${skipped.length} already-scraped record(s).`,
+      );
+      return { dispatched: [], skipped, reclassified: [], deferred: [] };
+    }
+    const result = await this.dispatchToScrape(runId, toDispatch);
+    this.logger.log(
+      `[${runId}] Skipped ${skipped.length} already-scraped record(s).`,
     );
-    const toClassify = toDispatch.filter((_id, i) => expiredFlags[i]);
-    const eligibleToScrape = toDispatch.filter((_id, i) => !expiredFlags[i]);
+    return { ...result, skipped };
+  }
+  async dispatchToScrape(
+    runId: string,
+    recordIds: string[],
+  ): Promise<ScrapeDispatchResult> {
+    const expiredFlags = await Promise.all(
+      recordIds.map((id) => this.storage.hasExpiredRecordDetail(id)),
+    );
+    const toClassify = recordIds.filter((_id, i) => expiredFlags[i]);
+    const eligibleToScrape = recordIds.filter((_id, i) => !expiredFlags[i]);
     const toScrape = eligibleToScrape.slice(
       0,
       this.config.maxRecordExtractions,
@@ -55,8 +78,8 @@ export class ListingDispatchService {
       dispatched = scheduled.map((entry) => entry.recordId);
     }
     this.logger.log(
-      `[${runId}] Dispatched ${dispatched.length} record(s), routed ${toClassify.length} previously-expired record(s) to language classification, deferred ${deferred.length} record(s) past MAX_RECORD_EXTRACTIONS=${this.config.maxRecordExtractions}, skipped ${skipped.length} already-scraped record(s).`,
+      `[${runId}] Dispatched ${dispatched.length} record(s), routed ${toClassify.length} previously-expired record(s) to language classification, deferred ${deferred.length} record(s) past MAX_RECORD_EXTRACTIONS=${this.config.maxRecordExtractions}.`,
     );
-    return { dispatched, skipped, reclassified: toClassify, deferred };
+    return { dispatched, reclassified: toClassify, deferred };
   }
 }

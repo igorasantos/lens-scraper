@@ -34,7 +34,16 @@ describe('PendingReprocessService', () => {
     const service = await buildService();
     const result = await service.run('run-2', 'run-1');
     expect(storage.readRawListingIds).toHaveBeenCalledWith('run-1');
-    expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1', '2', '2']);
+    expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1', '2', '2'], {
+      recycle: false,
+    });
     expect(result).toEqual({ dispatched: ['1', '2'], skipped: [] });
+  });
+  it('forwards the recycle flag to dispatch', async () => {
+    const service = await buildService();
+    await service.run('run-2', 'run-1', true);
+    expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1', '2', '2'], {
+      recycle: true,
+    });
   });
 });

@@ -3,19 +3,23 @@ import { EventPattern, Payload } from '@nestjs/microservices';
 import {
   DeadLetterService,
   SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
+  SCRAPE_RECORDS_RECYCLE_TOPIC,
   SCRAPE_LISTING_INIT_TOPIC,
   SCRAPE_LISTING_PAGE_TOPIC,
   type PendingReprocessMessage,
   type ListingInitMessage,
   type ListingPageMessage,
+  type RecordsRecycleMessage,
 } from '@app/queue';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { PendingReprocessService } from './pending-reprocess.service.js';
+import { RecordsRecycleService } from './records-recycle.service.js';
 @Controller()
 export class ListingController {
   constructor(
     private readonly listingCrawler: ListingCrawlerService,
     private readonly pendingReprocess: PendingReprocessService,
+    private readonly recordsRecycle: RecordsRecycleService,
     private readonly deadLetter: DeadLetterService,
   ) {}
   @EventPattern(SCRAPE_LISTING_INIT_TOPIC)
@@ -28,6 +32,7 @@ export class ListingController {
         message.runId,
         message.baseUrl,
         message.startPage,
+        message.recycle,
       ),
     );
   }
@@ -48,7 +53,21 @@ export class ListingController {
     return this.deadLetter.run(
       SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
       message,
-      () => this.pendingReprocess.run(message.runId, message.fromRunId),
+      () =>
+        this.pendingReprocess.run(
+          message.runId,
+          message.fromRunId,
+          message.recycle,
+        ),
+    );
+  }
+  @EventPattern(SCRAPE_RECORDS_RECYCLE_TOPIC)
+  handleRecordsRecycle(
+    @Payload()
+    message: RecordsRecycleMessage,
+  ): Promise<void> {
+    return this.deadLetter.run(SCRAPE_RECORDS_RECYCLE_TOPIC, message, () =>
+      this.recordsRecycle.run(message.runId),
     );
   }
 }

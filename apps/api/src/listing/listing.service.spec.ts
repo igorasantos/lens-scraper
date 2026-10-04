@@ -57,6 +57,19 @@ describe('ListingService', () => {
         startPage: 3,
       });
     });
+    it('publishes the given recycle flag', async () => {
+      const service = await buildService();
+      const result = await service.initListing({
+        baseUrl: 'https://example.com/search',
+        recycle: true,
+      });
+      expect(queue.publishListingInit).toHaveBeenCalledWith({
+        runId: result.runId,
+        baseUrl: 'https://example.com/search',
+        startPage: undefined,
+        recycle: true,
+      });
+    });
     it('falls back to the configured default baseUrl when none is given', async () => {
       const service = await buildService();
       const result = await service.initListing({});
@@ -107,6 +120,17 @@ describe('ListingService', () => {
       expect(queue.publishPendingReprocess).toHaveBeenCalledWith({
         runId: result.runId,
         fromRunId: 'run-1',
+      });
+    });
+    it('publishes the given recycle flag', async () => {
+      const service = await buildService();
+      const result = await service.reprocessPendingRecords('run-1', {
+        recycle: true,
+      });
+      expect(queue.publishPendingReprocess).toHaveBeenCalledWith({
+        runId: result.runId,
+        fromRunId: 'run-1',
+        recycle: true,
       });
     });
     it('generates a distinct runId per call', async () => {

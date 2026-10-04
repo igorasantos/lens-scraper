@@ -55,4 +55,15 @@ describe('ListingInitRequestDto', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toHaveProperty('isInt');
   });
+  it('passes validation when recycle is a boolean', async () => {
+    const dto = plainToInstance(ListingInitRequestDto, { recycle: true });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(0);
+  });
+  it('fails validation when recycle is not a boolean', async () => {
+    const dto = plainToInstance(ListingInitRequestDto, { recycle: 'yes' });
+    const errors = await validate(dto);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].constraints).toHaveProperty('isBoolean');
+  });
 });

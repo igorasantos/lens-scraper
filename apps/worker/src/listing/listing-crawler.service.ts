@@ -13,6 +13,7 @@ interface PageState {
   pagesVisited: number;
   recordIds: string[];
   lockToken: string;
+  recycle?: boolean;
 }
 @Injectable()
 export class ListingCrawlerService {
@@ -27,7 +28,12 @@ export class ListingCrawlerService {
     private readonly queue: QueueService,
     private readonly dispatch: ListingDispatchService,
   ) {}
-  async start(runId: string, baseUrl: string, startPage = 1): Promise<void> {
+  async start(
+    runId: string,
+    baseUrl: string,
+    startPage = 1,
+    recycle = false,
+  ): Promise<void> {
     const token = await this.lock.acquire(
       SESSION_LOCK_KEY,
       this.config.lockTtlMs,
@@ -41,7 +47,7 @@ export class ListingCrawlerService {
       this.logger.warn(
         `[${runId}] MAX_LISTING_PAGES=${this.config.maxListingPages}; nothing to crawl.`,
       );
-      await this.finish(runId, [], token);
+      await this.finish(runId, [], token, recycle);
       return;
     }
     await this.runPage({
@@ -50,6 +56,7 @@ export class ListingCrawlerService {
       pagesVisited: startPage - 1,
       recordIds: [],
       lockToken: token,
+      recycle,
     });
   }
   async continuePage(message: ListingPageMessage): Promise<void> {
@@ -75,7 +82,8 @@ export class ListingCrawlerService {
     }
   }
   private async processPage(state: PageState): Promise<void> {
-    const { runId, baseUrl, pagesVisited, recordIds, lockToken } = state;
+    const { runId, baseUrl, pagesVisited, recordIds, lockToken, recycle } =
+      state;
     const start = pagesVisited * this.site.listingPageSize;
     const page = await this.browser.newPage();
     let pageRecordIds: string[];
@@ -92,7 +100,7 @@ export class ListingCrawlerService {
       this.logger.log(
         `[${runId}] Empty page at start=${start}; stopping pagination.`,
       );
-      await this.finish(runId, recordIds, lockToken);
+      await this.finish(runId, recordIds, lockToken, recycle);
       return;
     }
     await this.storage.appendRawListingIds(runId, pageRecordIds);
@@ -102,7 +110,7 @@ export class ListingCrawlerService {
       this.logger.warn(
         `[${runId}] Reached MAX_LISTING_PAGES=${this.config.maxListingPages} without hitting an empty page.`,
       );
-      await this.finish(runId, accumulated, lockToken);
+      await this.finish(runId, accumulated, lockToken, recycle);
       return;
     }
     const delaySeconds = this.delayForPage(nextPagesVisited);
@@ -127,15 +135,17 @@ export class ListingCrawlerService {
       recordIds: accumulated,
       lockToken,
       scheduledAt,
+      recycle,
     });
   }
   private async finish(
     runId: string,
     recordIds: string[],
     lockToken: string,
+    recycle = false,
   ): Promise<void> {
     try {
-      await this.dispatch.dispatch(runId, recordIds);
+      await this.dispatch.dispatch(runId, recordIds, { recycle });
     } finally {
       await this.lock.release(SESSION_LOCK_KEY, lockToken);
     }

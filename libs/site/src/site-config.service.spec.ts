@@ -33,12 +33,15 @@ const validConfig = {
     expiredRecordsFilename: 'records_expired.txt',
     unknownLanguageBucket: 'xx',
     recordDetailRootDir: '1_records_raw',
+    recordDetailCatalogDir: '1_records_catalog',
     expiredRecordDetailDir: 'expired',
     sourceDetailRootDir: '0_sources',
     recordTitlesRootDir: '2_record_titles',
     recordsFilteredRootDir: '3_records_filtered',
     listingIdsFilename: 'listing-ids.txt',
     rawListingIdsFilename: 'raw_listing_ids.txt',
+    listingIdsFilenameRecycled: 'listing-ids-recycled.txt',
+    listingIdsFilenameToScrape: 'listing-ids-to-scrape.txt',
     failuresLogFilename: 'failures.log',
     sourcesFilename: 'sources.txt',
     recordTitlesRawFilename: '1_raw.txt',
@@ -90,12 +93,17 @@ describe('SiteConfigService', () => {
     expect(service.expiredRecordsFilename).toBe('records_expired.txt');
     expect(service.unknownLanguageBucket).toBe('xx');
     expect(service.recordDetailRootDir).toBe('1_records_raw');
+    expect(service.recordDetailCatalogDir).toBe('1_records_catalog');
     expect(service.expiredRecordDetailDir).toBe('expired');
     expect(service.sourceDetailRootDir).toBe('0_sources');
     expect(service.recordTitlesRootDir).toBe('2_record_titles');
     expect(service.recordsFilteredRootDir).toBe('3_records_filtered');
     expect(service.listingIdsFilename).toBe('listing-ids.txt');
     expect(service.rawListingIdsFilename).toBe('raw_listing_ids.txt');
+    expect(service.listingIdsFilenameRecycled).toBe('listing-ids-recycled.txt');
+    expect(service.listingIdsFilenameToScrape).toBe(
+      'listing-ids-to-scrape.txt',
+    );
     expect(service.failuresLogFilename).toBe('failures.log');
     expect(service.sourcesFilename).toBe('sources.txt');
     expect(service.recordTitlesRawFilename).toBe('1_raw.txt');

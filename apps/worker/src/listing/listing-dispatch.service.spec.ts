@@ -12,6 +12,7 @@ describe('ListingDispatchService', () => {
   let queue: {
     publishRecordDetailsBatch: ReturnType<typeof vi.fn>;
     publishRecordLanguageClassifyBatch: ReturnType<typeof vi.fn>;
+    publishRecordsRecycle: ReturnType<typeof vi.fn>;
   };
   let config: {
     maxRecordExtractions: number;
@@ -36,6 +37,7 @@ describe('ListingDispatchService', () => {
     queue = {
       publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined),
       publishRecordLanguageClassifyBatch: vi.fn().mockResolvedValue(undefined),
+      publishRecordsRecycle: vi.fn().mockResolvedValue(undefined),
     };
     config = { maxRecordExtractions: 20 };
   });
@@ -149,5 +151,75 @@ describe('ListingDispatchService', () => {
     const service = await buildService();
     await service.dispatch('run-1', ['1', '2']);
     expect(callOrder).toEqual(['writeListingIds', 'publishRecordDetailsBatch']);
+  });
+  describe('with recycle', () => {
+    it('writes listing-ids.txt, then hands the run to recycling instead of publishing any detail or classify task', async () => {
+      const callOrder: string[] = [];
+      storage.readRecordIds.mockResolvedValue(new Set(['2']));
+      storage.writeListingIds.mockImplementation(async () => {
+        callOrder.push('writeListingIds');
+      });
+      queue.publishRecordsRecycle.mockImplementation(async () => {
+        callOrder.push('publishRecordsRecycle');
+      });
+      const service = await buildService();
+      const result = await service.dispatch('run-1', ['1', '2', '3'], {
+        recycle: true,
+      });
+      expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1', '3']);
+      expect(queue.publishRecordsRecycle).toHaveBeenCalledWith({
+        runId: 'run-1',
+      });
+      expect(callOrder).toEqual(['writeListingIds', 'publishRecordsRecycle']);
+      expect(result).toEqual({
+        dispatched: [],
+        skipped: ['2'],
+        reclassified: [],
+        deferred: [],
+      });
+      expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
+      expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
+      expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
+    });
+    it('does not hand anything to recycling when everything is already scraped', async () => {
+      storage.readRecordIds.mockResolvedValue(new Set(['1']));
+      const service = await buildService();
+      await service.dispatch('run-1', ['1'], { recycle: true });
+      expect(queue.publishRecordsRecycle).not.toHaveBeenCalled();
+    });
+    it('does not recycle when the flag is false', async () => {
+      const service = await buildService();
+      await service.dispatch('run-1', ['1'], { recycle: false });
+      expect(queue.publishRecordsRecycle).not.toHaveBeenCalled();
+      expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
+    });
+  });
+  describe('dispatchToScrape', () => {
+    it('routes expired ids to classification and caps the rest at MAX_RECORD_EXTRACTIONS, without deduping or touching listing-ids.txt', async () => {
+      config.maxRecordExtractions = 1;
+      storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
+        Promise.resolve(id === '2'),
+      );
+      const service = await buildService();
+      const result = await service.dispatchToScrape('run-1', ['1', '2', '3']);
+      expect(result).toEqual({
+        dispatched: ['1'],
+        reclassified: ['2'],
+        deferred: ['3'],
+      });
+      expect(storage.readRecordIds).not.toHaveBeenCalled();
+      expect(storage.writeListingIds).not.toHaveBeenCalled();
+    });
+    it('publishes nothing for an empty list', async () => {
+      const service = await buildService();
+      const result = await service.dispatchToScrape('run-1', []);
+      expect(result).toEqual({
+        dispatched: [],
+        reclassified: [],
+        deferred: [],
+      });
+      expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
+      expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
+    });
   });
 });

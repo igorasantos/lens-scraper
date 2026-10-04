@@ -10,4 +10,5 @@ export interface StoragePort {
   remove(key: string): Promise<void>;
   list(prefix: string, options?: StorageListOptions): Promise<string[]>;
   copy(sourceKey: string, destKey: string): Promise<void>;
+  move(sourceKey: string, destKey: string): Promise<void>;
 }

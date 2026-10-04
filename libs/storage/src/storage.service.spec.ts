@@ -17,12 +17,15 @@ class FakeSiteConfigService {
   expiredRecordsFilename = 'records_expired.txt';
   unknownLanguageBucket = 'xx';
   recordDetailRootDir = '1_records_raw';
+  recordDetailCatalogDir = '1_records_catalog';
   expiredRecordDetailDir = 'expired';
   sourceDetailRootDir = '0_sources';
   recordTitlesRootDir = '2_record_titles';
   recordsFilteredRootDir = '3_records_filtered';
   listingIdsFilename = 'listing-ids.txt';
   rawListingIdsFilename = 'raw_listing_ids.txt';
+  listingIdsFilenameRecycled = 'listing-ids-recycled.txt';
+  listingIdsFilenameToScrape = 'listing-ids-to-scrape.txt';
   failuresLogFilename = 'failures.log';
   sourcesFilename = 'sources.txt';
   recordTitlesRawFilename = '1_raw.txt';
@@ -68,6 +71,10 @@ class FakeStoragePort implements StoragePort {
   }
   async copy(sourceKey: string, destKey: string): Promise<void> {
     this.files.set(destKey, await this.read(sourceKey));
+  }
+  async move(sourceKey: string, destKey: string): Promise<void> {
+    this.files.set(destKey, await this.read(sourceKey));
+    this.files.delete(sourceKey);
   }
 }
 class FakeLockPort implements LockPort {
@@ -340,6 +347,101 @@ describe('StorageService', () => {
       attempts: 3,
     });
     expect(typeof entry.timestamp).toBe('string');
+  });
+  describe('record detail catalog recycling', () => {
+    it('readListingIds returns the trimmed, non-empty ids of the run', async () => {
+      storage.files.set(join('runs', 'run-1', 'listing-ids.txt'), '1\n 2 \n\n');
+      await expect(service.readListingIds('run-1')).resolves.toEqual([
+        '1',
+        '2',
+      ]);
+    });
+    it('readListingIds throws a descriptive error when the run has no listing-ids.txt', async () => {
+      await expect(service.readListingIds('run-1')).rejects.toThrow(
+        'No listing-ids.txt found for run run-1',
+      );
+    });
+    it('builds the recycled and to-scrape listing ids keys under runs/<runId>', () => {
+      expect(service.recycledListingIdsPath('run-1')).toBe(
+        join('runs', 'run-1', 'listing-ids-recycled.txt'),
+      );
+      expect(service.toScrapeListingIdsPath('run-1')).toBe(
+        join('runs', 'run-1', 'listing-ids-to-scrape.txt'),
+      );
+    });
+    it('appendRecycledListingId appends one id per line and readRecycledListingIds reads them back', async () => {
+      await expect(service.readRecycledListingIds('run-1')).resolves.toEqual(
+        [],
+      );
+      await service.appendRecycledListingId('run-1', '1');
+      await service.appendRecycledListingId('run-1', '2');
+      expect(
+        storage.files.get(join('runs', 'run-1', 'listing-ids-recycled.txt')),
+      ).toBe('1\n2\n');
+      await expect(service.readRecycledListingIds('run-1')).resolves.toEqual([
+        '1',
+        '2',
+      ]);
+    });
+    it('writeToScrapeListingIds overwrites the entry with one id per line', async () => {
+      const key = join('runs', 'run-1', 'listing-ids-to-scrape.txt');
+      storage.files.set(key, 'stale\n');
+      await service.writeToScrapeListingIds('run-1', ['3', '4']);
+      expect(storage.files.get(key)).toBe('3\n4\n');
+    });
+    it('readRecordDetailCatalog indexes every html file recursively by record id, with its parent dir as bucket', async () => {
+      storage.files.set('1_records_catalog/en/1.html', 'en');
+      storage.files.set('1_records_catalog/batch-a/pt/2.html', 'pt');
+      storage.files.set('1_records_catalog/expired/3.html', 'expired');
+      storage.files.set('1_records_catalog/4.html', 'root');
+      storage.files.set('1_records_catalog/en/notes.txt', 'ignored');
+      storage.files.set('1_records_raw/en/5.html', 'not in the catalog');
+      const catalog = await service.readRecordDetailCatalog();
+      expect(storage.listCalls).toEqual([
+        { prefix: '1_records_catalog', options: undefined },
+      ]);
+      expect(Object.fromEntries(catalog)).toEqual({
+        '1': { key: '1_records_catalog/en/1.html', bucket: 'en' },
+        '2': { key: '1_records_catalog/batch-a/pt/2.html', bucket: 'pt' },
+        '3': { key: '1_records_catalog/expired/3.html', bucket: 'expired' },
+        '4': { key: '1_records_catalog/4.html', bucket: 'xx' },
+      });
+    });
+    it('readRecordDetailCatalog keeps the first entry when a record id appears more than once', async () => {
+      storage.files.set('1_records_catalog/en/1.html', 'en');
+      storage.files.set('1_records_catalog/pt/1.html', 'pt');
+      const catalog = await service.readRecordDetailCatalog();
+      expect(catalog.get('1')).toEqual({
+        key: '1_records_catalog/en/1.html',
+        bucket: 'en',
+      });
+    });
+    it('readRecordDetailCatalog returns an empty map when the catalog dir has no entries', async () => {
+      await expect(service.readRecordDetailCatalog()).resolves.toEqual(
+        new Map(),
+      );
+    });
+    it('recycleRecordDetail moves the catalog html into the same bucket under 1_records_raw/', async () => {
+      storage.files.set('1_records_catalog/batch-a/pt/2.html', '<div>2</div>');
+      const destKey = await service.recycleRecordDetail('2', {
+        key: '1_records_catalog/batch-a/pt/2.html',
+        bucket: 'pt',
+      });
+      expect(destKey).toBe(join('1_records_raw', 'pt', '2.html'));
+      expect(storage.files.get(destKey)).toBe('<div>2</div>');
+      expect(storage.files.has('1_records_catalog/batch-a/pt/2.html')).toBe(
+        false,
+      );
+    });
+    it('recycleRecordDetail moves a catalog html from the expired bucket under 1_records_raw/expired/', async () => {
+      storage.files.set('1_records_catalog/expired/3.html', '<div>3</div>');
+      const destKey = await service.recycleRecordDetail('3', {
+        key: '1_records_catalog/expired/3.html',
+        bucket: 'expired',
+      });
+      expect(destKey).toBe(service.expiredRecordDetailPath('3'));
+      await expect(service.hasExpiredRecordDetail('3')).resolves.toBe(true);
+    });
   });
   describe('expired records tracking', () => {
     it('builds the expired records key directly under the data dir root', () => {

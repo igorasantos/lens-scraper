@@ -41,12 +41,15 @@ export interface SiteConfig {
     expiredRecordsFilename: string;
     unknownLanguageBucket: string;
     recordDetailRootDir: string;
+    recordDetailCatalogDir: string;
     expiredRecordDetailDir: string;
     sourceDetailRootDir: string;
     recordTitlesRootDir: string;
     recordsFilteredRootDir: string;
     listingIdsFilename: string;
     rawListingIdsFilename: string;
+    listingIdsFilenameRecycled: string;
+    listingIdsFilenameToScrape: string;
     failuresLogFilename: string;
     sourcesFilename: string;
     recordTitlesRawFilename: string;
@@ -88,12 +91,15 @@ const siteConfigSchema = Joi.object<SiteConfig>({
     expiredRecordsFilename: Joi.string().required(),
     unknownLanguageBucket: Joi.string().required(),
     recordDetailRootDir: Joi.string().required(),
+    recordDetailCatalogDir: Joi.string().required(),
     expiredRecordDetailDir: Joi.string().required(),
     sourceDetailRootDir: Joi.string().required(),
     recordTitlesRootDir: Joi.string().required(),
     recordsFilteredRootDir: Joi.string().required(),
     listingIdsFilename: Joi.string().required(),
     rawListingIdsFilename: Joi.string().required(),
+    listingIdsFilenameRecycled: Joi.string().required(),
+    listingIdsFilenameToScrape: Joi.string().required(),
     failuresLogFilename: Joi.string().required(),
     sourcesFilename: Joi.string().required(),
     recordTitlesRawFilename: Joi.string().required(),
@@ -179,6 +185,9 @@ export class SiteConfigService {
   get recordDetailRootDir(): string {
     return this.config.storage.recordDetailRootDir;
   }
+  get recordDetailCatalogDir(): string {
+    return this.config.storage.recordDetailCatalogDir;
+  }
   get expiredRecordDetailDir(): string {
     return this.config.storage.expiredRecordDetailDir;
   }
@@ -196,6 +205,12 @@ export class SiteConfigService {
   }
   get rawListingIdsFilename(): string {
     return this.config.storage.rawListingIdsFilename;
+  }
+  get listingIdsFilenameRecycled(): string {
+    return this.config.storage.listingIdsFilenameRecycled;
+  }
+  get listingIdsFilenameToScrape(): string {
+    return this.config.storage.listingIdsFilenameToScrape;
   }
   get failuresLogFilename(): string {
     return this.config.storage.failuresLogFilename;

@@ -6,6 +6,7 @@ import {
   mkdir,
   readdir,
   readFile,
+  rename,
   unlink,
   writeFile,
 } from 'node:fs/promises';
@@ -60,6 +61,20 @@ export class LocalFilesystemStorageAdapter implements StoragePort {
     const destPath = this.resolve(destKey);
     await mkdir(dirname(destPath), { recursive: true });
     await copyFile(this.resolve(sourceKey), destPath);
+  }
+  async move(sourceKey: string, destKey: string): Promise<void> {
+    const sourcePath = this.resolve(sourceKey);
+    const destPath = this.resolve(destKey);
+    await mkdir(dirname(destPath), { recursive: true });
+    try {
+      await rename(sourcePath, destPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EXDEV') {
+        throw error;
+      }
+      await copyFile(sourcePath, destPath);
+      await unlink(sourcePath);
+    }
   }
   private resolve(key: string): string {
     const resolved = join(this.config.localStorageDir, key);

@@ -9,6 +9,7 @@ import {
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { ListingInitRequestDto } from './dto/listing-init-request.dto.js';
 import { ListingInitResponseDto } from './dto/listing-init-response.dto.js';
+import { PendingReprocessRequestDto } from './dto/pending-reprocess-request.dto.js';
 import { PendingReprocessResponseDto } from './dto/pending-reprocess-response.dto.js';
 import { ListingService } from './listing.service.js';
 /* v8 ignore start */
@@ -32,7 +33,9 @@ export class ListingController {
   reprocessPendingRecords(
     @Param('fromRunId')
     fromRunId: string,
+    @Body()
+    dto: PendingReprocessRequestDto,
   ): Promise<PendingReprocessResponseDto> {
-    return this.listingService.reprocessPendingRecords(fromRunId);
+    return this.listingService.reprocessPendingRecords(fromRunId, dto);
   }
 }
