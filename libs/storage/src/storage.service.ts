@@ -10,6 +10,15 @@ export interface FailureLogEntry {
   reason: string;
   attempts: number;
 }
+export interface DeadLetterEntry<T = unknown> {
+  payload: T;
+  attempts: number;
+  error: {
+    message: string;
+    stack?: string;
+  };
+  failedAt: string;
+}
 export interface RecordDetailCatalogEntry {
   key: string;
   bucket: string;
@@ -111,6 +120,25 @@ export class StorageService {
   failuresLogPath(runId: string): string {
     return join('runs', runId, this.siteConfig.failuresLogFilename);
   }
+  deadLetterRecordIdsPath(runId: string, topic: string): string {
+    return join(
+      'runs',
+      runId,
+      this.siteConfig.deadLetterDir,
+      this.siteConfig.deadLetterRecordIdsFilename(topic),
+    );
+  }
+  deadLetterPayloadsPath(runId: string, topic: string): string {
+    return join(
+      'runs',
+      runId,
+      this.siteConfig.deadLetterDir,
+      this.siteConfig.deadLetterPayloadsFilename(topic),
+    );
+  }
+  recordIdFromDetailKey(key: string): string {
+    return basename(key, '.html');
+  }
   expiredRecordsPath(): string {
     return this.siteConfig.expiredRecordsFilename;
   }
@@ -187,7 +215,7 @@ export class StorageService {
       if (!key.endsWith('.html')) {
         continue;
       }
-      const recordId = basename(key, '.html');
+      const recordId = this.recordIdFromDetailKey(key);
       const existing = catalog.get(recordId);
       if (existing) {
         this.logger.warn(
@@ -362,6 +390,24 @@ export class StorageService {
       `${JSON.stringify({ ...entry, timestamp: new Date().toISOString() })}\n`,
     );
     this.logger.debug(`Appended failure entry for ${entry.recordId} to ${key}`);
+  }
+  async appendDeadLetterRecordId(
+    runId: string,
+    topic: string,
+    recordId: string,
+  ): Promise<string> {
+    const key = this.deadLetterRecordIdsPath(runId, topic);
+    await this.storage.append(key, `${recordId}\n`);
+    return key;
+  }
+  async appendDeadLetterPayload(
+    runId: string,
+    topic: string,
+    entry: DeadLetterEntry,
+  ): Promise<string> {
+    const key = this.deadLetterPayloadsPath(runId, topic);
+    await this.storage.append(key, `${JSON.stringify(entry)}\n`);
+    return key;
   }
   async listRecordDetailHtmlFiles(): Promise<string[]> {
     const keys = await this.storage.list(this.siteConfig.recordDetailRootDir);

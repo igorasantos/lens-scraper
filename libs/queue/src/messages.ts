@@ -58,13 +58,3 @@ export interface RecordLanguageClassifyMessage {
   runId: string;
   recordId: string;
 }
-export interface DeadLetterEnvelope<T = unknown> {
-  topic: string;
-  payload: T;
-  attempts: number;
-  error: {
-    message: string;
-    stack?: string;
-  };
-  failedAt: string;
-}

@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@app/config';
-import { DeadLetterService, QUEUE_PORT } from '@app/queue';
+import { DeadLetterService } from '@app/storage';
 import { DetailScraperService } from './detail-scraper.service.js';
 import { ExpiredReprocessService } from './expired-reprocess.service.js';
 import { XxReprocessService } from './xx-reprocess.service.js';
 import { DetailController } from './detail.controller.js';
 describe('DetailController', () => {
+  let deadLetter: {
+    run: ReturnType<typeof vi.fn>;
+  };
   let detailController: DetailController;
   let detailScraper: {
     handle: ReturnType<typeof vi.fn>;
@@ -17,6 +19,16 @@ describe('DetailController', () => {
     run: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
+    deadLetter = {
+      run: vi.fn(
+        (
+          _topic: string,
+          _target: unknown,
+          _payload: unknown,
+          handle: () => Promise<void>,
+        ) => handle(),
+      ),
+    };
     detailScraper = { handle: vi.fn().mockResolvedValue(undefined) };
     expiredReprocess = {
       run: vi.fn().mockResolvedValue({ reprocessed: ['1', '2'] }),
@@ -30,12 +42,7 @@ describe('DetailController', () => {
         { provide: DetailScraperService, useValue: detailScraper },
         { provide: ExpiredReprocessService, useValue: expiredReprocess },
         { provide: XxReprocessService, useValue: xxReprocess },
-        DeadLetterService,
-        { provide: QUEUE_PORT, useValue: { publish: vi.fn() } },
-        {
-          provide: ConfigService,
-          useValue: { kafkaHandlerMaxAttempts: 3, kafkaHandlerRetryBaseMs: 1 },
-        },
+        { provide: DeadLetterService, useValue: deadLetter },
       ],
     }).compile();
     detailController = app.get<DetailController>(DetailController);
@@ -48,6 +55,26 @@ describe('DetailController', () => {
       };
       await detailController.handleRecordDetail(message);
       expect(detailScraper.handle).toHaveBeenCalledWith(message);
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.record.detail',
+        { runId: 'manual', recordId: '123' },
+        message,
+        expect.any(Function),
+      );
+    });
+    it('dead-letters under the message runId when present', async () => {
+      const message = {
+        recordId: '123',
+        scheduledAt: '2026-01-01T00:00:00.000Z',
+        runId: 'run-9',
+      };
+      await detailController.handleRecordDetail(message);
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.record.detail',
+        { runId: 'run-9', recordId: '123' },
+        message,
+        expect.any(Function),
+      );
     });
   });
   describe('handleExpiredReprocess', () => {
@@ -55,6 +82,12 @@ describe('DetailController', () => {
       const message = { runId: 'run-3' };
       await detailController.handleExpiredReprocess(message);
       expect(expiredReprocess.run).toHaveBeenCalledWith('run-3');
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.records.expired.reprocess',
+        { runId: 'run-3' },
+        message,
+        expect.any(Function),
+      );
     });
   });
   describe('handleXxReprocess', () => {
@@ -62,6 +95,12 @@ describe('DetailController', () => {
       const message = { runId: 'run-3b' };
       await detailController.handleXxReprocess(message);
       expect(xxReprocess.run).toHaveBeenCalledWith('run-3b');
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.records.xx.reprocess',
+        { runId: 'run-3b' },
+        message,
+        expect.any(Function),
+      );
     });
   });
 });

@@ -14,13 +14,13 @@ vi.mock('@confluentinc/kafka-javascript', () => ({
 }));
 const { provisionTopicRetention } =
   await import('./topic-retention.provisioner.js');
-const { ALL_TOPICS, ALL_DEAD_LETTER_TOPICS } = await import('./topics.js');
+const { ALL_TOPICS } = await import('./topics.js');
 describe('provisionTopicRetention', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-  it('connects, creates every topic (including dead-letter topics) with the right retention, and disconnects', async () => {
-    await provisionTopicRetention(['broker:9092'], 3600000, 604800000);
+  it('connects, creates every topic with the configured retention, and disconnects', async () => {
+    await provisionTopicRetention(['broker:9092'], 3600000);
     expect(MockKafka).toHaveBeenCalledWith({
       kafkaJS: { brokers: ['broker:9092'], logLevel: 0 },
     });
@@ -33,25 +33,18 @@ describe('provisionTopicRetention', () => {
         }[];
       },
     ];
-    expect(topics).toHaveLength(
-      ALL_TOPICS.length + ALL_DEAD_LETTER_TOPICS.length,
-    );
-    const normalTopicConfig = topics.find((t) => t.topic === ALL_TOPICS[0]);
-    expect(normalTopicConfig?.configEntries).toEqual([
-      { name: 'retention.ms', value: '3600000' },
-    ]);
-    const dlqTopicConfig = topics.find(
-      (t) => t.topic === ALL_DEAD_LETTER_TOPICS[0],
-    );
-    expect(dlqTopicConfig?.configEntries).toEqual([
-      { name: 'retention.ms', value: '604800000' },
-    ]);
+    expect(topics.map((t) => t.topic)).toEqual([...ALL_TOPICS]);
+    for (const { configEntries } of topics) {
+      expect(configEntries).toEqual([
+        { name: 'retention.ms', value: '3600000' },
+      ]);
+    }
     expect(mockDisconnect).toHaveBeenCalledTimes(1);
   });
   it('disconnects even when createTopics throws', async () => {
     mockCreateTopics.mockRejectedValueOnce(new Error('boom'));
     await expect(
-      provisionTopicRetention(['broker:9092'], 3600000, 604800000),
+      provisionTopicRetention(['broker:9092'], 3600000),
     ).rejects.toThrow('boom');
     expect(mockDisconnect).toHaveBeenCalledTimes(1);
   });

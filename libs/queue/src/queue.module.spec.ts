@@ -25,7 +25,6 @@ describe('QueueModule', () => {
       kafkaBrokers: ['broker:9092'],
       queueProvider: 'local',
       kafkaTopicRetentionMs: 3600000,
-      kafkaDlqRetentionMs: 604800000,
       ...overrides,
     } as unknown as ConfigService;
   }
@@ -58,14 +57,12 @@ describe('QueueModule', () => {
         fakeConfig({
           kafkaBrokers: ['broker:9092'],
           kafkaTopicRetentionMs: 111,
-          kafkaDlqRetentionMs: 222,
         }),
       );
       await instance.onModuleInit();
       expect(provisionTopicRetention).toHaveBeenCalledWith(
         ['broker:9092'],
         111,
-        222,
       );
     });
     it('skips provisioning when QUEUE_PROVIDER is not local', async () => {

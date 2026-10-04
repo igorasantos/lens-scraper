@@ -1,7 +1,6 @@
 import { Module, type OnModuleInit } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@app/config';
 import { QueueService } from './queue.service.js';
-import { DeadLetterService } from './dead-letter.service.js';
 import { QUEUE_PORT } from './queue-port.token.js';
 import { KafkaQueueAdapter } from './adapters/kafka-queue.adapter.js';
 import { provisionTopicRetention } from './topic-retention.provisioner.js';
@@ -10,7 +9,6 @@ import { provisionTopicRetention } from './topic-retention.provisioner.js';
   imports: [ConfigModule],
   providers: [
     QueueService,
-    DeadLetterService,
     {
       provide: QUEUE_PORT,
       inject: [ConfigService],
@@ -24,7 +22,7 @@ import { provisionTopicRetention } from './topic-retention.provisioner.js';
       },
     },
   ],
-  exports: [QueueService, DeadLetterService, QUEUE_PORT],
+  exports: [QueueService, QUEUE_PORT],
   /* v8 ignore start */
 })
 /* v8 ignore stop */
@@ -37,7 +35,6 @@ export class QueueModule implements OnModuleInit {
     await provisionTopicRetention(
       this.config.kafkaBrokers,
       this.config.kafkaTopicRetentionMs,
-      this.config.kafkaDlqRetentionMs,
     );
   }
 }

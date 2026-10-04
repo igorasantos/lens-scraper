@@ -55,6 +55,9 @@ export interface SiteConfig {
     recordTitlesRawFilename: string;
     recordTitlesDedupSortedFilename: string;
     recordTitlesFilteredFilename: string;
+    deadLetterDir: string;
+    deadLetterRecordIdsFilenameTemplate: string;
+    deadLetterPayloadsFilenameTemplate: string;
   };
 }
 const siteConfigSchema = Joi.object<SiteConfig>({
@@ -105,6 +108,13 @@ const siteConfigSchema = Joi.object<SiteConfig>({
     recordTitlesRawFilename: Joi.string().required(),
     recordTitlesDedupSortedFilename: Joi.string().required(),
     recordTitlesFilteredFilename: Joi.string().required(),
+    deadLetterDir: Joi.string().required(),
+    deadLetterRecordIdsFilenameTemplate: Joi.string()
+      .pattern(/\{topic\}/)
+      .required(),
+    deadLetterPayloadsFilenameTemplate: Joi.string()
+      .pattern(/\{topic\}/)
+      .required(),
   }).required(),
 });
 function fillTemplate(template: string, recordId: string): string {
@@ -226,6 +236,21 @@ export class SiteConfigService {
   }
   get recordTitlesFilteredFilename(): string {
     return this.config.storage.recordTitlesFilteredFilename;
+  }
+  get deadLetterDir(): string {
+    return this.config.storage.deadLetterDir;
+  }
+  deadLetterRecordIdsFilename(topic: string): string {
+    return this.config.storage.deadLetterRecordIdsFilenameTemplate.replace(
+      '{topic}',
+      topic,
+    );
+  }
+  deadLetterPayloadsFilename(topic: string): string {
+    return this.config.storage.deadLetterPayloadsFilenameTemplate.replace(
+      '{topic}',
+      topic,
+    );
   }
   buildRecordDetailUrl(recordId: string): string {
     return fillTemplate(this.config.detail.urlTemplate, recordId);

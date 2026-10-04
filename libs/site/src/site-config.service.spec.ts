@@ -47,6 +47,9 @@ const validConfig = {
     recordTitlesRawFilename: '1_raw.txt',
     recordTitlesDedupSortedFilename: '2_dedup_sorted.txt',
     recordTitlesFilteredFilename: '3_filtered.txt',
+    deadLetterDir: 'dlq',
+    deadLetterRecordIdsFilenameTemplate: '{topic}.txt',
+    deadLetterPayloadsFilenameTemplate: '{topic}.jsonl',
   },
 };
 describe('SiteConfigService', () => {
@@ -109,6 +112,29 @@ describe('SiteConfigService', () => {
     expect(service.recordTitlesRawFilename).toBe('1_raw.txt');
     expect(service.recordTitlesDedupSortedFilename).toBe('2_dedup_sorted.txt');
     expect(service.recordTitlesFilteredFilename).toBe('3_filtered.txt');
+    expect(service.deadLetterDir).toBe('dlq');
+  });
+  it('fills the {topic} placeholder in both dead-letter filename templates', async () => {
+    const path = await writeConfig(validConfig);
+    const service = new SiteConfigService(fakeConfigService(path));
+    expect(service.deadLetterRecordIdsFilename('scrape.record.detail')).toBe(
+      'scrape.record.detail.txt',
+    );
+    expect(service.deadLetterPayloadsFilename('scrape.listing.init')).toBe(
+      'scrape.listing.init.jsonl',
+    );
+  });
+  it('throws when a dead-letter filename template lacks the {topic} placeholder', async () => {
+    const path = await writeConfig({
+      ...validConfig,
+      storage: {
+        ...validConfig.storage,
+        deadLetterPayloadsFilenameTemplate: 'dlq.jsonl',
+      },
+    });
+    expect(() => new SiteConfigService(fakeConfigService(path))).toThrow(
+      /deadLetterPayloadsFilenameTemplate/,
+    );
   });
   it('fills the {id} placeholder when building the record detail url', async () => {
     const path = await writeConfig(validConfig);

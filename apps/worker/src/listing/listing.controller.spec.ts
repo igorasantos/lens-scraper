@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@app/config';
-import { DeadLetterService, QUEUE_PORT } from '@app/queue';
+import { DeadLetterService } from '@app/storage';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { PendingReprocessService } from './pending-reprocess.service.js';
 import { RecordsRecycleService } from './records-recycle.service.js';
 import { ListingController } from './listing.controller.js';
 describe('ListingController', () => {
+  let deadLetter: {
+    run: ReturnType<typeof vi.fn>;
+  };
   let listingController: ListingController;
   let listingCrawler: {
     start: ReturnType<typeof vi.fn>;
@@ -18,6 +20,16 @@ describe('ListingController', () => {
     run: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
+    deadLetter = {
+      run: vi.fn(
+        (
+          _topic: string,
+          _target: unknown,
+          _payload: unknown,
+          handle: () => Promise<void>,
+        ) => handle(),
+      ),
+    };
     listingCrawler = {
       start: vi.fn().mockResolvedValue(undefined),
       continuePage: vi.fn().mockResolvedValue(undefined),
@@ -37,12 +49,7 @@ describe('ListingController', () => {
         { provide: ListingCrawlerService, useValue: listingCrawler },
         { provide: PendingReprocessService, useValue: pendingReprocess },
         { provide: RecordsRecycleService, useValue: recordsRecycle },
-        DeadLetterService,
-        { provide: QUEUE_PORT, useValue: { publish: vi.fn() } },
-        {
-          provide: ConfigService,
-          useValue: { kafkaHandlerMaxAttempts: 3, kafkaHandlerRetryBaseMs: 1 },
-        },
+        { provide: DeadLetterService, useValue: deadLetter },
       ],
     }).compile();
     listingController = app.get<ListingController>(ListingController);
@@ -56,6 +63,12 @@ describe('ListingController', () => {
         'https://example.com',
         undefined,
         undefined,
+      );
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.listing.init',
+        { runId: 'run-1' },
+        message,
+        expect.any(Function),
       );
     });
     it('passes startPage through to ListingCrawlerService.start', async () => {
@@ -99,6 +112,12 @@ describe('ListingController', () => {
       };
       await listingController.handleListingPage(message);
       expect(listingCrawler.continuePage).toHaveBeenCalledWith(message);
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.listing.page',
+        { runId: 'run-1' },
+        message,
+        expect.any(Function),
+      );
     });
   });
   describe('handlePendingReprocess', () => {
@@ -110,6 +129,12 @@ describe('ListingController', () => {
         'run-1',
         undefined,
       );
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.records.pending.reprocess',
+        { runId: 'run-2' },
+        message,
+        expect.any(Function),
+      );
     });
     it('passes recycle through to PendingReprocessService', async () => {
       const message = { runId: 'run-2', fromRunId: 'run-1', recycle: true };
@@ -119,8 +144,15 @@ describe('ListingController', () => {
   });
   describe('handleRecordsRecycle', () => {
     it('delegates to RecordsRecycleService', async () => {
-      await listingController.handleRecordsRecycle({ runId: 'run-1' });
+      const message = { runId: 'run-1' };
+      await listingController.handleRecordsRecycle(message);
       expect(recordsRecycle.run).toHaveBeenCalledWith('run-1');
+      expect(deadLetter.run).toHaveBeenCalledWith(
+        'scrape.records.recycle',
+        { runId: 'run-1' },
+        message,
+        expect.any(Function),
+      );
     });
   });
 });

@@ -20,7 +20,6 @@ const env: Record<string, string> = {
   RECORD_DETAIL_WAIT_MAX_SEC: '5',
   KAFKA_CONSUMER_SESSION_TIMEOUT_MS: '60000',
   KAFKA_TOPIC_RETENTION_MS: '3600000',
-  KAFKA_DLQ_RETENTION_MS: '604800000',
   KAFKA_HANDLER_MAX_ATTEMPTS: '3',
   KAFKA_HANDLER_RETRY_BASE_MS: '500',
   BROWSER_CLOSE_WAIT_MIN_MS: '3000',
@@ -84,7 +83,6 @@ describe('ConfigService', () => {
     expect(service.recordDetailWaitMaxSec).toBe(5);
     expect(service.kafkaConsumerSessionTimeoutMs).toBe(60000);
     expect(service.kafkaTopicRetentionMs).toBe(3600000);
-    expect(service.kafkaDlqRetentionMs).toBe(604800000);
     expect(service.kafkaHandlerMaxAttempts).toBe(3);
     expect(service.kafkaHandlerRetryBaseMs).toBe(500);
     expect(service.browserCloseWaitMinMs).toBe(3000);

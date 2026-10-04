@@ -7,5 +7,3 @@ export * from './consumer-transport.factory.js';
 export * from './topics.js';
 export * from './messages.js';
 export * from './schedule.js';
-export * from './dead-letter.service.js';
-export * from './dead-letter-inspector.js';

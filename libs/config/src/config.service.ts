@@ -67,9 +67,6 @@ export class ConfigService {
   get kafkaTopicRetentionMs(): number {
     return this.getNumber('KAFKA_TOPIC_RETENTION_MS');
   }
-  get kafkaDlqRetentionMs(): number {
-    return this.getNumber('KAFKA_DLQ_RETENTION_MS');
-  }
   get kafkaHandlerMaxAttempts(): number {
     return this.getNumber('KAFKA_HANDLER_MAX_ATTEMPTS');
   }

@@ -31,6 +31,13 @@ class FakeSiteConfigService {
   recordTitlesRawFilename = '1_raw.txt';
   recordTitlesDedupSortedFilename = '2_dedup_sorted.txt';
   recordTitlesFilteredFilename = '3_filtered.txt';
+  deadLetterDir = 'dlq';
+  deadLetterRecordIdsFilename(topic: string): string {
+    return `${topic}.txt`;
+  }
+  deadLetterPayloadsFilename(topic: string): string {
+    return `${topic}.jsonl`;
+  }
   recordsFilename(languageAlpha2: string): string {
     return `records_${languageAlpha2}.txt`;
   }
@@ -347,6 +354,56 @@ describe('StorageService', () => {
       attempts: 3,
     });
     expect(typeof entry.timestamp).toBe('string');
+  });
+  describe('dead letters', () => {
+    it('builds both dead-letter keys under runs/<runId>/<deadLetterDir>', () => {
+      expect(
+        service.deadLetterRecordIdsPath('manual', 'scrape.record.detail'),
+      ).toBe(join('runs', 'manual', 'dlq', 'scrape.record.detail.txt'));
+      expect(
+        service.deadLetterPayloadsPath('run-1', 'scrape.listing.init'),
+      ).toBe(join('runs', 'run-1', 'dlq', 'scrape.listing.init.jsonl'));
+    });
+    it('appendDeadLetterRecordId appends one record id per line and returns the key', async () => {
+      const key = await service.appendDeadLetterRecordId(
+        'run-1',
+        'scrape.record.detail',
+        '123',
+      );
+      await service.appendDeadLetterRecordId(
+        'run-1',
+        'scrape.record.detail',
+        '456',
+      );
+      expect(key).toBe(
+        service.deadLetterRecordIdsPath('run-1', 'scrape.record.detail'),
+      );
+      await expect(storage.read(key)).resolves.toBe('123\n456\n');
+    });
+    it('appendDeadLetterPayload appends one JSON line per entry and returns the key', async () => {
+      const entry = {
+        payload: { runId: 'run-1' },
+        attempts: 3,
+        error: { message: 'boom' },
+        failedAt: '2026-01-01T00:00:00.000Z',
+      };
+      const key = await service.appendDeadLetterPayload(
+        'run-1',
+        'scrape.listing.init',
+        entry,
+      );
+      expect(key).toBe(
+        service.deadLetterPayloadsPath('run-1', 'scrape.listing.init'),
+      );
+      const lines = (await storage.read(key)).trim().split('\n');
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0])).toEqual(entry);
+    });
+    it('recordIdFromDetailKey strips the directory and .html extension', () => {
+      expect(
+        service.recordIdFromDetailKey(join('1_records_raw', 'en', '111.html')),
+      ).toBe('111');
+    });
   });
   describe('record detail catalog recycling', () => {
     it('readListingIds returns the trimmed, non-empty ids of the run', async () => {

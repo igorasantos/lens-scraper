@@ -1,7 +1,0 @@
-info:
-  name: 5 dlq
-  type: folder
-  seq: 6
-
-request:
-  auth: inherit

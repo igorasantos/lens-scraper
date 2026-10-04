@@ -1,7 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import {
-  DeadLetterService,
   SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
   SCRAPE_RECORDS_RECYCLE_TOPIC,
   SCRAPE_LISTING_INIT_TOPIC,
@@ -11,6 +10,7 @@ import {
   type ListingPageMessage,
   type RecordsRecycleMessage,
 } from '@app/queue';
+import { DeadLetterService } from '@app/storage';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { PendingReprocessService } from './pending-reprocess.service.js';
 import { RecordsRecycleService } from './records-recycle.service.js';
@@ -27,13 +27,17 @@ export class ListingController {
     @Payload()
     message: ListingInitMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_LISTING_INIT_TOPIC, message, () =>
-      this.listingCrawler.start(
-        message.runId,
-        message.baseUrl,
-        message.startPage,
-        message.recycle,
-      ),
+    return this.deadLetter.run(
+      SCRAPE_LISTING_INIT_TOPIC,
+      { runId: message.runId },
+      message,
+      () =>
+        this.listingCrawler.start(
+          message.runId,
+          message.baseUrl,
+          message.startPage,
+          message.recycle,
+        ),
     );
   }
   @EventPattern(SCRAPE_LISTING_PAGE_TOPIC)
@@ -41,8 +45,11 @@ export class ListingController {
     @Payload()
     message: ListingPageMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_LISTING_PAGE_TOPIC, message, () =>
-      this.listingCrawler.continuePage(message),
+    return this.deadLetter.run(
+      SCRAPE_LISTING_PAGE_TOPIC,
+      { runId: message.runId },
+      message,
+      () => this.listingCrawler.continuePage(message),
     );
   }
   @EventPattern(SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC)
@@ -52,6 +59,7 @@ export class ListingController {
   ): Promise<void> {
     return this.deadLetter.run(
       SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
+      { runId: message.runId },
       message,
       () =>
         this.pendingReprocess.run(
@@ -66,8 +74,11 @@ export class ListingController {
     @Payload()
     message: RecordsRecycleMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_RECORDS_RECYCLE_TOPIC, message, () =>
-      this.recordsRecycle.run(message.runId),
+    return this.deadLetter.run(
+      SCRAPE_RECORDS_RECYCLE_TOPIC,
+      { runId: message.runId },
+      message,
+      () => this.recordsRecycle.run(message.runId),
     );
   }
 }

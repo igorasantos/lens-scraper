@@ -33,7 +33,3 @@ export const ALL_TOPICS = [
   SCRAPE_RECORD_FILTER_COPY_TOPIC,
   SCRAPE_RECORD_LANGUAGE_CLASSIFY_TOPIC,
 ] as const;
-export function toDeadLetterTopic(topic: string): string {
-  return `${topic}.dlq`;
-}
-export const ALL_DEAD_LETTER_TOPICS = ALL_TOPICS.map(toDeadLetterTopic);

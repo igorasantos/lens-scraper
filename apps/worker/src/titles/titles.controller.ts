@@ -1,7 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import {
-  DeadLetterService,
   SCRAPE_RECORD_TITLE_EXTRACT_TOPIC,
   SCRAPE_RECORD_TITLES_DEDUP_SORT_TOPIC,
   SCRAPE_RECORD_TITLES_FILTER_TOPIC,
@@ -11,6 +10,7 @@ import {
   type RecordTitlesExtractMessage,
   type RecordTitlesFilterMessage,
 } from '@app/queue';
+import { DeadLetterService, StorageService } from '@app/storage';
 import { RecordTitlesExtractService } from './record-titles-extract.service.js';
 import { RecordTitleExtractService } from './record-title-extract.service.js';
 import { RecordTitlesDedupSortService } from './record-titles-dedup-sort.service.js';
@@ -23,6 +23,7 @@ export class TitlesController {
     private readonly recordTitlesDedupSort: RecordTitlesDedupSortService,
     private readonly recordTitlesFilter: RecordTitlesFilterService,
     private readonly deadLetter: DeadLetterService,
+    private readonly storage: StorageService,
   ) {}
   @EventPattern(SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC)
   handleRecordTitlesExtract(
@@ -31,6 +32,7 @@ export class TitlesController {
   ): Promise<void> {
     return this.deadLetter.run(
       SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC,
+      { runId: message.runId },
       message,
       () => this.recordTitlesExtract.run(message.runId),
     );
@@ -40,8 +42,14 @@ export class TitlesController {
     @Payload()
     message: RecordTitleExtractMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_RECORD_TITLE_EXTRACT_TOPIC, message, () =>
-      this.recordTitleExtract.run(message),
+    return this.deadLetter.run(
+      SCRAPE_RECORD_TITLE_EXTRACT_TOPIC,
+      {
+        runId: message.runId,
+        recordId: this.storage.recordIdFromDetailKey(message.fileKey),
+      },
+      message,
+      () => this.recordTitleExtract.run(message),
     );
   }
   @EventPattern(SCRAPE_RECORD_TITLES_DEDUP_SORT_TOPIC)
@@ -51,6 +59,7 @@ export class TitlesController {
   ): Promise<void> {
     return this.deadLetter.run(
       SCRAPE_RECORD_TITLES_DEDUP_SORT_TOPIC,
+      { runId: message.runId },
       message,
       () => this.recordTitlesDedupSort.run(message.runId),
     );
@@ -60,8 +69,11 @@ export class TitlesController {
     @Payload()
     message: RecordTitlesFilterMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_RECORD_TITLES_FILTER_TOPIC, message, () =>
-      this.recordTitlesFilter.run(message.runId, message.substrings),
+    return this.deadLetter.run(
+      SCRAPE_RECORD_TITLES_FILTER_TOPIC,
+      { runId: message.runId },
+      message,
+      () => this.recordTitlesFilter.run(message.runId, message.substrings),
     );
   }
 }

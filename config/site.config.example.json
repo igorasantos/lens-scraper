@@ -45,6 +45,9 @@
     "sourcesFilename": "sources.txt",
     "recordTitlesRawFilename": "1_raw.txt",
     "recordTitlesDedupSortedFilename": "2_dedup_sorted.txt",
-    "recordTitlesFilteredFilename": "3_filtered.txt"
+    "recordTitlesFilteredFilename": "3_filtered.txt",
+    "deadLetterDir": "dlq",
+    "deadLetterRecordIdsFilenameTemplate": "{topic}.txt",
+    "deadLetterPayloadsFilenameTemplate": "{topic}.jsonl"
   }
 }

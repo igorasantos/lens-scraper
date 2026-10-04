@@ -1,7 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import {
-  DeadLetterService,
   SCRAPE_RECORD_DETAIL_TOPIC,
   SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC,
   SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
@@ -9,9 +8,11 @@ import {
   type RecordDetailMessage,
   type XxReprocessMessage,
 } from '@app/queue';
+import { DeadLetterService } from '@app/storage';
 import { DetailScraperService } from './detail-scraper.service.js';
 import { ExpiredReprocessService } from './expired-reprocess.service.js';
 import { XxReprocessService } from './xx-reprocess.service.js';
+import { MANUAL_RUN_ID } from '../common/run-id.js';
 @Controller()
 export class DetailController {
   constructor(
@@ -25,8 +26,11 @@ export class DetailController {
     @Payload()
     message: RecordDetailMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_RECORD_DETAIL_TOPIC, message, () =>
-      this.detailScraper.handle(message),
+    return this.deadLetter.run(
+      SCRAPE_RECORD_DETAIL_TOPIC,
+      { runId: message.runId ?? MANUAL_RUN_ID, recordId: message.recordId },
+      message,
+      () => this.detailScraper.handle(message),
     );
   }
   @EventPattern(SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC)
@@ -36,6 +40,7 @@ export class DetailController {
   ): Promise<void> {
     return this.deadLetter.run(
       SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC,
+      { runId: message.runId },
       message,
       () => this.expiredReprocess.run(message.runId),
     );
@@ -45,8 +50,11 @@ export class DetailController {
     @Payload()
     message: XxReprocessMessage,
   ): Promise<void> {
-    return this.deadLetter.run(SCRAPE_RECORDS_XX_REPROCESS_TOPIC, message, () =>
-      this.xxReprocess.run(message.runId),
+    return this.deadLetter.run(
+      SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
+      { runId: message.runId },
+      message,
+      () => this.xxReprocess.run(message.runId),
     );
   }
 }
