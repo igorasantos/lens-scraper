@@ -36,9 +36,11 @@ describe('ListingCrawlerService', () => {
   let config: {
     maxListingPages: number;
     lockTtlMs: number;
+    lockBusyRequeueWaitMs: number;
   };
   let queue: {
     publishListingPage: ReturnType<typeof vi.fn>;
+    publishListingInit: ReturnType<typeof vi.fn>;
   };
   let dispatch: {
     dispatch: ReturnType<typeof vi.fn>;
@@ -85,8 +87,15 @@ describe('ListingCrawlerService', () => {
       extend: vi.fn().mockResolvedValue(true),
       release: vi.fn().mockResolvedValue(true),
     };
-    config = { maxListingPages: 50, lockTtlMs: 90000 };
-    queue = { publishListingPage: vi.fn().mockResolvedValue(undefined) };
+    config = {
+      maxListingPages: 50,
+      lockTtlMs: 90000,
+      lockBusyRequeueWaitMs: 5000,
+    };
+    queue = {
+      publishListingPage: vi.fn().mockResolvedValue(undefined),
+      publishListingInit: vi.fn().mockResolvedValue(undefined),
+    };
     dispatch = {
       dispatch: vi.fn().mockResolvedValue({ dispatched: [], skipped: [] }),
     };
@@ -175,12 +184,34 @@ describe('ListingCrawlerService', () => {
       expect(page.close).toHaveBeenCalledTimes(1);
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
     });
-    it('throws and never touches the browser when the session lock is already held', async () => {
+    it('waits lockBusyRequeueWaitMs, then requeues the init without throwing or touching the browser when the session lock is already held', async () => {
       lock.acquire.mockResolvedValue(null);
       const service = await buildService();
-      await expect(service.start('run-1', baseUrl)).rejects.toThrow();
+      vi.useFakeTimers();
+      try {
+        const done = service.start('run-1', baseUrl, 3, true);
+        await vi.advanceTimersByTimeAsync(4999);
+        expect(queue.publishListingInit).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(done).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(queue.publishListingInit).toHaveBeenCalledWith({
+        runId: 'run-1',
+        baseUrl,
+        startPage: 3,
+        recycle: true,
+      });
       expect(browser.newPage).not.toHaveBeenCalled();
       expect(lock.release).not.toHaveBeenCalled();
+      expect(dispatch.dispatch).not.toHaveBeenCalled();
+    });
+    it('does not requeue the init when the session lock is acquired', async () => {
+      site.extractRecordIds.mockResolvedValue(['1']);
+      const service = await buildService();
+      await service.start('run-1', baseUrl);
+      expect(queue.publishListingInit).not.toHaveBeenCalled();
     });
   });
   describe('continuePage', () => {

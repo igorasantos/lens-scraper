@@ -30,6 +30,7 @@ function buildTestConfig(localStorageDir: string): ConfigService {
     fixedWaitMs: Number(process.env.FIXED_WAIT_MS),
     recordDetailWaitMinSec: Number(process.env.RECORD_DETAIL_WAIT_MIN_SEC),
     recordDetailWaitMaxSec: Number(process.env.RECORD_DETAIL_WAIT_MAX_SEC),
+    lockBusyRequeueWaitMs: Number(process.env.LOCK_BUSY_REQUEUE_WAIT_MS),
     kafkaConsumerSessionTimeoutMs: Number(
       process.env.KAFKA_CONSUMER_SESSION_TIMEOUT_MS,
     ),

@@ -6,7 +6,7 @@ import { LOCK_PORT, SESSION_LOCK_KEY, type LockPort } from '@app/redis-lock';
 import { ConfigService } from '@app/config';
 import { QueueService, type ListingPageMessage } from '@app/queue';
 import { ListingDispatchService } from './listing-dispatch.service.js';
-import { waitUntil } from '../common/pacing.util.js';
+import { sleep, waitUntil } from '../common/pacing.util.js';
 interface PageState {
   runId: string;
   baseUrl: string;
@@ -39,9 +39,17 @@ export class ListingCrawlerService {
       this.config.lockTtlMs,
     );
     if (!token) {
-      throw new Error(
-        `[${runId}] Could not acquire the site session lock; another worker holds it.`,
+      await sleep(this.config.lockBusyRequeueWaitMs);
+      await this.queue.publishListingInit({
+        runId,
+        baseUrl,
+        startPage,
+        recycle,
+      });
+      this.logger.debug(
+        `[${runId}] Site session lock is busy; requeued the listing init message.`,
       );
+      return;
     }
     if (this.config.maxListingPages <= 0) {
       this.logger.warn(

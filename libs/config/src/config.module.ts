@@ -22,6 +22,7 @@ const envSchema = Joi.object({
   FIXED_WAIT_MS: positiveInt.required(),
   RECORD_DETAIL_WAIT_MIN_SEC: positiveInt.required(),
   RECORD_DETAIL_WAIT_MAX_SEC: positiveInt.required(),
+  LOCK_BUSY_REQUEUE_WAIT_MS: positiveInt.required(),
   KAFKA_CONSUMER_SESSION_TIMEOUT_MS: positiveInt.required(),
   KAFKA_TOPIC_RETENTION_MS: positiveInt.required(),
   BROWSER_CLOSE_WAIT_MIN_MS: positiveInt.required(),

@@ -61,6 +61,9 @@ export class ConfigService {
   get recordDetailWaitMaxSec(): number {
     return this.getNumber('RECORD_DETAIL_WAIT_MAX_SEC');
   }
+  get lockBusyRequeueWaitMs(): number {
+    return this.getNumber('LOCK_BUSY_REQUEUE_WAIT_MS');
+  }
   get kafkaConsumerSessionTimeoutMs(): number {
     return this.getNumber('KAFKA_CONSUMER_SESSION_TIMEOUT_MS');
   }
