@@ -16,7 +16,9 @@ export class XxReprocessService {
   async run(runId: string): Promise<XxReprocessResult> {
     const recordIds = await this.storage.readUnknownLanguageRecordIds();
     if (recordIds.length === 0) {
-      this.logger.log(`[${runId}] No records_xx.txt record ids to reprocess.`);
+      this.logger.log(
+        `[${runId}] No unknown-language record ids to reprocess.`,
+      );
       return { reprocessed: [] };
     }
     const scheduled = stampScheduledAt(recordIds);
@@ -24,7 +26,7 @@ export class XxReprocessService {
       scheduled.map((entry) => ({ ...entry, runId })),
     );
     this.logger.log(
-      `[${runId}] Reprocessing ${scheduled.length} records_xx.txt record(s).`,
+      `[${runId}] Reprocessing ${scheduled.length} unknown-language record(s).`,
     );
     return { reprocessed: scheduled.map((entry) => entry.recordId) };
   }

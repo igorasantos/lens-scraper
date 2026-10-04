@@ -13,8 +13,8 @@ class FakeConfigService {
   fileLockMaxWaitMs = 5000;
 }
 class FakeSiteConfigService {
-  scrapedRecordsFilePattern = /^records_(.+)\.txt$/;
-  expiredScrapedRecordsFile = 'records_expired.txt';
+  scrapedRecordsFilePattern = /^scraped_records_(.+)\.txt$/;
+  expiredScrapedRecordsFile = 'scraped_records_expired.txt';
   unknownLanguageBucket = 'xx';
   scrapedRecordDetailsDir = '1_records_raw';
   recordDetailCatalogDir = '1_records_catalog';
@@ -22,10 +22,10 @@ class FakeSiteConfigService {
   sourceDetailDir = '0_sources';
   recordTitlesDir = '2_record_titles';
   recordsFilteredDir = '3_records_filtered';
-  listingIdsFile = 'listing-ids.txt';
+  listingIdsFile = 'listing_ids.txt';
   rawListingIdsFile = 'raw_listing_ids.txt';
-  listingRecycledIdsFile = 'listing-ids-recycled.txt';
-  listingIdsToScrapeFile = 'listing-ids-to-scrape.txt';
+  listingRecycledIdsFile = 'listing_ids_recycled.txt';
+  listingIdsToScrapeFile = 'listing_ids_to_scrape.txt';
   failuresLogFile = 'failures.log';
   sourcesFile = 'sources.txt';
   rawRecordTitlesFile = '1_raw.txt';
@@ -39,7 +39,7 @@ class FakeSiteConfigService {
     return `${topic}.jsonl`;
   }
   scrapedRecordsFilename(languageAlpha2: string): string {
-    return `records_${languageAlpha2}.txt`;
+    return `scraped_records_${languageAlpha2}.txt`;
   }
 }
 class FakeStoragePort implements StoragePort {
@@ -157,12 +157,12 @@ describe('StorageService', () => {
       contendedService.appendSourceName('source-alpha'),
     ).rejects.toThrow(/Timed out waiting for file lock/);
   });
-  it('builds the listing-ids key under runs/<runId>', () => {
+  it('builds the listing_ids key under runs/<runId>', () => {
     expect(service.listingIdsPath('run-1')).toBe(
-      join('runs', 'run-1', 'listing-ids.txt'),
+      join('runs', 'run-1', 'listing_ids.txt'),
     );
   });
-  it('builds the raw-listing-ids key under runs/<runId>', () => {
+  it('builds the raw-listing_ids key under runs/<runId>', () => {
     expect(service.rawListingIdsPath('run-1')).toBe(
       join('runs', 'run-1', 'raw_listing_ids.txt'),
     );
@@ -211,20 +211,20 @@ describe('StorageService', () => {
       '222\n',
     );
   });
-  it('builds the records_<alpha2>.txt key directly under the data dir root', () => {
-    expect(service.recordsPath('en')).toBe('records_en.txt');
+  it('builds the scraped_records_<alpha2>.txt key directly under the data dir root', () => {
+    expect(service.recordsPath('en')).toBe('scraped_records_en.txt');
   });
-  it('readRecordIds returns an empty set when no records_<alpha2>.txt exists', async () => {
+  it('readRecordIds returns an empty set when no scraped_records_<alpha2>.txt exists', async () => {
     await expect(service.readRecordIds()).resolves.toEqual(new Set());
   });
-  it('readRecordIds unions ids across every per-language records_<alpha2>.txt', async () => {
+  it('readRecordIds unions ids across every per-language scraped_records_<alpha2>.txt', async () => {
     storage.files.set(service.recordsPath('en'), '111\n222\n\n333\n');
     storage.files.set(service.recordsPath('pt'), '444\n111\n');
     await expect(service.readRecordIds()).resolves.toEqual(
       new Set(['111', '222', '333', '444']),
     );
   });
-  it('readRecordIds ignores records_expired.txt even though it matches the records_<alpha2>.txt pattern', async () => {
+  it('readRecordIds ignores scraped_records_expired.txt even though it matches the scraped_records_<alpha2>.txt pattern', async () => {
     storage.files.set(service.recordsPath('en'), '111\n');
     storage.files.set(service.expiredRecordsPath(), '999\n');
     await expect(service.readRecordIds()).resolves.toEqual(new Set(['111']));
@@ -236,7 +236,7 @@ describe('StorageService', () => {
   });
   it('readRecordIds lists only the storage root, without descending into subdirectories', async () => {
     storage.files.set(service.recordsPath('en'), '111\n');
-    storage.files.set('nested/records_pt.txt', '222\n');
+    storage.files.set('nested/scraped_records_pt.txt', '222\n');
     await expect(service.readRecordIds()).resolves.toEqual(new Set(['111']));
     expect(storage.listCalls).toEqual([
       { prefix: '', options: { recursive: false } },
@@ -265,7 +265,7 @@ describe('StorageService', () => {
       storage.read(service.recordDetailPath('en', '123')),
     ).resolves.toBe('<div>second</div>');
   });
-  it('appendRecordId appends to the cumulative records_<alpha2>.txt', async () => {
+  it('appendRecordId appends to the cumulative scraped_records_<alpha2>.txt', async () => {
     await service.appendRecordId('111', 'en');
     await service.appendRecordId('222', 'en');
     await expect(storage.read(service.recordsPath('en'))).resolves.toBe(
@@ -407,23 +407,23 @@ describe('StorageService', () => {
   });
   describe('record detail catalog recycling', () => {
     it('readListingIds returns the trimmed, non-empty ids of the run', async () => {
-      storage.files.set(join('runs', 'run-1', 'listing-ids.txt'), '1\n 2 \n\n');
+      storage.files.set(join('runs', 'run-1', 'listing_ids.txt'), '1\n 2 \n\n');
       await expect(service.readListingIds('run-1')).resolves.toEqual([
         '1',
         '2',
       ]);
     });
-    it('readListingIds throws a descriptive error when the run has no listing-ids.txt', async () => {
+    it('readListingIds throws a descriptive error when the run has no listing_ids.txt', async () => {
       await expect(service.readListingIds('run-1')).rejects.toThrow(
-        'No listing-ids.txt found for run run-1',
+        'No listing_ids.txt found for run run-1',
       );
     });
     it('builds the recycled and to-scrape listing ids keys under runs/<runId>', () => {
       expect(service.recycledListingIdsPath('run-1')).toBe(
-        join('runs', 'run-1', 'listing-ids-recycled.txt'),
+        join('runs', 'run-1', 'listing_ids_recycled.txt'),
       );
       expect(service.toScrapeListingIdsPath('run-1')).toBe(
-        join('runs', 'run-1', 'listing-ids-to-scrape.txt'),
+        join('runs', 'run-1', 'listing_ids_to_scrape.txt'),
       );
     });
     it('appendRecycledListingId appends one id per line and readRecycledListingIds reads them back', async () => {
@@ -433,7 +433,7 @@ describe('StorageService', () => {
       await service.appendRecycledListingId('run-1', '1');
       await service.appendRecycledListingId('run-1', '2');
       expect(
-        storage.files.get(join('runs', 'run-1', 'listing-ids-recycled.txt')),
+        storage.files.get(join('runs', 'run-1', 'listing_ids_recycled.txt')),
       ).toBe('1\n2\n');
       await expect(service.readRecycledListingIds('run-1')).resolves.toEqual([
         '1',
@@ -441,7 +441,7 @@ describe('StorageService', () => {
       ]);
     });
     it('writeToScrapeListingIds overwrites the entry with one id per line', async () => {
-      const key = join('runs', 'run-1', 'listing-ids-to-scrape.txt');
+      const key = join('runs', 'run-1', 'listing_ids_to_scrape.txt');
       storage.files.set(key, 'stale\n');
       await service.writeToScrapeListingIds('run-1', ['3', '4']);
       expect(storage.files.get(key)).toBe('3\n4\n');
@@ -502,7 +502,7 @@ describe('StorageService', () => {
   });
   describe('expired records tracking', () => {
     it('builds the expired records key directly under the data dir root', () => {
-      expect(service.expiredRecordsPath()).toBe('records_expired.txt');
+      expect(service.expiredRecordsPath()).toBe('scraped_records_expired.txt');
     });
     it('appendExpiredRecord appends the record id as a newline-separated entry', async () => {
       await service.appendExpiredRecord('111');
@@ -518,7 +518,7 @@ describe('StorageService', () => {
         '111\n',
       );
     });
-    it('readExpiredRecordIds returns an empty array when records_expired.txt does not exist', async () => {
+    it('readExpiredRecordIds returns an empty array when scraped_records_expired.txt does not exist', async () => {
       await expect(service.readExpiredRecordIds()).resolves.toEqual([]);
     });
     it('readExpiredRecordIds returns the trimmed, deduped, non-empty ids', async () => {
@@ -543,7 +543,7 @@ describe('StorageService', () => {
         '111\n',
       );
     });
-    it('removeExpiredRecord returns false when records_expired.txt does not exist', async () => {
+    it('removeExpiredRecord returns false when scraped_records_expired.txt does not exist', async () => {
       await expect(service.removeExpiredRecord('111')).resolves.toBe(false);
     });
     it('appendExpiredRecord serializes concurrent calls so neither id is lost to a race on the read-modify-write', async () => {
@@ -584,7 +584,7 @@ describe('StorageService', () => {
       await service.writeExpiredRecordDetail('123', '<div>expired</div>');
       await expect(service.hasExpiredRecordDetail('123')).resolves.toBe(true);
     });
-    it('moveExpiredRecordToLanguageBucket writes the html under the language bucket, removes the expired file, and drops the record from records_expired.txt', async () => {
+    it('moveExpiredRecordToLanguageBucket writes the html under the language bucket, removes the expired file, and drops the record from scraped_records_expired.txt', async () => {
       await service.writeExpiredRecordDetail(
         '123',
         '<div>updated content</div>',
@@ -613,7 +613,7 @@ describe('StorageService', () => {
         '123\n',
       );
     });
-    it('moveExpiredRecordToLanguageBucket migrates the record out of records_xx.txt when it lands under a real language', async () => {
+    it('moveExpiredRecordToLanguageBucket migrates the record out of scraped_records_xx.txt when it lands under a real language', async () => {
       await service.appendRecordId('123', 'xx');
       await service.moveExpiredRecordToLanguageBucket(
         '123',
@@ -622,7 +622,7 @@ describe('StorageService', () => {
       );
       await expect(storage.read(service.recordsPath('xx'))).resolves.toBe('');
     });
-    it('moveExpiredRecordToLanguageBucket writes to the xx bucket without touching records_xx.txt again when the language is still undetermined', async () => {
+    it('moveExpiredRecordToLanguageBucket writes to the xx bucket without touching scraped_records_xx.txt again when the language is still undetermined', async () => {
       await service.moveExpiredRecordToLanguageBucket(
         '123',
         'xx',
@@ -637,7 +637,7 @@ describe('StorageService', () => {
     });
   });
   describe('unknown language (xx) reprocessing', () => {
-    it('readUnknownLanguageRecordIds returns an empty array when records_xx.txt does not exist', async () => {
+    it('readUnknownLanguageRecordIds returns an empty array when scraped_records_xx.txt does not exist', async () => {
       await expect(service.readUnknownLanguageRecordIds()).resolves.toEqual([]);
     });
     it('readUnknownLanguageRecordIds returns the trimmed, deduped, non-empty ids', async () => {
@@ -647,7 +647,7 @@ describe('StorageService', () => {
         '222',
       ]);
     });
-    it('migrateOutOfUnknownLanguageBucket removes the record id from records_xx.txt and deletes its stale html', async () => {
+    it('migrateOutOfUnknownLanguageBucket removes the record id from scraped_records_xx.txt and deletes its stale html', async () => {
       await service.appendRecordId('111', 'xx');
       await service.appendRecordId('222', 'xx');
       await service.writeRecordDetail('xx', '111', '<div>stale</div>');
@@ -668,12 +668,12 @@ describe('StorageService', () => {
         '222\n',
       );
     });
-    it('migrateOutOfUnknownLanguageBucket does nothing when records_xx.txt does not exist', async () => {
+    it('migrateOutOfUnknownLanguageBucket does nothing when scraped_records_xx.txt does not exist', async () => {
       await expect(
         service.migrateOutOfUnknownLanguageBucket('111'),
       ).resolves.toBeUndefined();
     });
-    it('migrateOutOfUnknownLanguageBucket serializes concurrent calls so records_xx.txt does not lose an update', async () => {
+    it('migrateOutOfUnknownLanguageBucket serializes concurrent calls so scraped_records_xx.txt does not lose an update', async () => {
       await service.appendRecordId('111', 'xx');
       await service.appendRecordId('222', 'xx');
       await service.appendRecordId('333', 'xx');
@@ -724,7 +724,7 @@ describe('StorageService', () => {
         service.recordDetailPath('en', '111'),
       ]);
     });
-    it('listRecordDetailHtmlFiles ignores records_<alpha2>.txt and records_expired.txt keys at the data dir root', async () => {
+    it('listRecordDetailHtmlFiles ignores scraped_records_<alpha2>.txt and scraped_records_expired.txt keys at the data dir root', async () => {
       await service.appendRecordId('111', 'en');
       await service.appendExpiredRecord('222');
       await expect(service.listRecordDetailHtmlFiles()).resolves.toEqual([]);

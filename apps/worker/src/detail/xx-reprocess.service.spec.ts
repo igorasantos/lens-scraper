@@ -25,7 +25,7 @@ describe('XxReprocessService', () => {
     };
     queue = { publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined) };
   });
-  it('reads records_xx.txt, stamps a shared scheduledAt, and publishes each record under the given runId', async () => {
+  it('reads scraped_records_xx.txt, stamps a shared scheduledAt, and publishes each record under the given runId', async () => {
     storage.readUnknownLanguageRecordIds.mockResolvedValue(['1', '2']);
     const service = await buildService();
     const result = await service.run('run-1');
@@ -38,7 +38,7 @@ describe('XxReprocessService', () => {
       { recordId: '2', scheduledAt: published[1].scheduledAt, runId: 'run-1' },
     ]);
   });
-  it('publishes nothing when there are no records_xx.txt records', async () => {
+  it('publishes nothing when there are no scraped_records_xx.txt records', async () => {
     const service = await buildService();
     const result = await service.run('run-1');
     expect(result).toEqual({ reprocessed: [] });

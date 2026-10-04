@@ -29,8 +29,8 @@ const validConfig = {
     stripElements: ['script'],
   },
   storage: {
-    scrapedRecordsFilenameTemplate: 'records_{lang}.txt',
-    expiredScrapedRecordsFile: 'records_expired.txt',
+    scrapedRecordsFilenameTemplate: 'scraped_records_{lang}.txt',
+    expiredScrapedRecordsFile: 'scraped_records_expired.txt',
     unknownLanguageBucket: 'xx',
     scrapedRecordDetailsDir: '1_records_raw',
     recordDetailCatalogDir: '1_records_catalog',
@@ -38,10 +38,10 @@ const validConfig = {
     sourceDetailDir: '0_sources',
     recordTitlesDir: '2_record_titles',
     recordsFilteredDir: '3_records_filtered',
-    listingIdsFile: 'listing-ids.txt',
+    listingIdsFile: 'listing_ids.txt',
     rawListingIdsFile: 'raw_listing_ids.txt',
-    listingRecycledIdsFile: 'listing-ids-recycled.txt',
-    listingIdsToScrapeFile: 'listing-ids-to-scrape.txt',
+    listingRecycledIdsFile: 'listing_ids_recycled.txt',
+    listingIdsToScrapeFile: 'listing_ids_to_scrape.txt',
     failuresLogFile: 'failures.log',
     sourcesFile: 'sources.txt',
     rawRecordTitlesFile: '1_raw.txt',
@@ -93,7 +93,9 @@ describe('SiteConfigService', () => {
     expect(service.expiredRecordMarker).toBe('not available');
     expect(service.sanitizeStripAttributes).toEqual(['class']);
     expect(service.sanitizeStripElements).toEqual(['script']);
-    expect(service.expiredScrapedRecordsFile).toBe('records_expired.txt');
+    expect(service.expiredScrapedRecordsFile).toBe(
+      'scraped_records_expired.txt',
+    );
     expect(service.unknownLanguageBucket).toBe('xx');
     expect(service.scrapedRecordDetailsDir).toBe('1_records_raw');
     expect(service.recordDetailCatalogDir).toBe('1_records_catalog');
@@ -101,10 +103,10 @@ describe('SiteConfigService', () => {
     expect(service.sourceDetailDir).toBe('0_sources');
     expect(service.recordTitlesDir).toBe('2_record_titles');
     expect(service.recordsFilteredDir).toBe('3_records_filtered');
-    expect(service.listingIdsFile).toBe('listing-ids.txt');
+    expect(service.listingIdsFile).toBe('listing_ids.txt');
     expect(service.rawListingIdsFile).toBe('raw_listing_ids.txt');
-    expect(service.listingRecycledIdsFile).toBe('listing-ids-recycled.txt');
-    expect(service.listingIdsToScrapeFile).toBe('listing-ids-to-scrape.txt');
+    expect(service.listingRecycledIdsFile).toBe('listing_ids_recycled.txt');
+    expect(service.listingIdsToScrapeFile).toBe('listing_ids_to_scrape.txt');
     expect(service.failuresLogFile).toBe('failures.log');
     expect(service.sourcesFile).toBe('sources.txt');
     expect(service.rawRecordTitlesFile).toBe('1_raw.txt');
@@ -151,19 +153,21 @@ describe('SiteConfigService', () => {
   it('derives the records filename from the language alpha2 code', async () => {
     const path = await writeConfig(validConfig);
     const service = new SiteConfigService(fakeConfigService(path));
-    expect(service.scrapedRecordsFilename('en')).toBe('records_en.txt');
+    expect(service.scrapedRecordsFilename('en')).toBe('scraped_records_en.txt');
   });
   it('derives a matching pattern from scrapedRecordsFilenameTemplate', async () => {
     const path = await writeConfig(validConfig);
     const service = new SiteConfigService(fakeConfigService(path));
-    expect(service.scrapedRecordsFilePattern.test('records_en.txt')).toBe(true);
-    expect(service.scrapedRecordsFilePattern.test('records_expired.txt')).toBe(
-      true,
-    );
+    expect(
+      service.scrapedRecordsFilePattern.test('scraped_records_en.txt'),
+    ).toBe(true);
+    expect(
+      service.scrapedRecordsFilePattern.test('scraped_records_expired.txt'),
+    ).toBe(true);
     expect(service.scrapedRecordsFilePattern.test('other.txt')).toBe(false);
-    expect('records_pt.txt'.match(service.scrapedRecordsFilePattern)?.[1]).toBe(
-      'pt',
-    );
+    expect(
+      'scraped_records_pt.txt'.match(service.scrapedRecordsFilePattern)?.[1],
+    ).toBe('pt');
   });
   it('allows omitting auth for sites that need no login', async () => {
     const { auth: _auth, ...withoutAuth } = validConfig;

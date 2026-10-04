@@ -140,7 +140,7 @@ describe('ListingDispatchService', () => {
     await service.dispatch('run-1', ['1']);
     expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
   });
-  it('writes listing-ids.txt before publishing anything to the queue', async () => {
+  it('writes listing_ids.txt before publishing anything to the queue', async () => {
     const callOrder: string[] = [];
     storage.writeListingIds.mockImplementation(async () => {
       callOrder.push('writeListingIds');
@@ -153,7 +153,7 @@ describe('ListingDispatchService', () => {
     expect(callOrder).toEqual(['writeListingIds', 'publishRecordDetailsBatch']);
   });
   describe('with recycle', () => {
-    it('writes listing-ids.txt, then hands the run to recycling instead of publishing any detail or classify task', async () => {
+    it('writes listing_ids.txt, then hands the run to recycling instead of publishing any detail or classify task', async () => {
       const callOrder: string[] = [];
       storage.readRecordIds.mockResolvedValue(new Set(['2']));
       storage.writeListingIds.mockImplementation(async () => {
@@ -195,7 +195,7 @@ describe('ListingDispatchService', () => {
     });
   });
   describe('dispatchToScrape', () => {
-    it('routes expired ids to classification and caps the rest at MAX_RECORD_EXTRACTIONS, without deduping or touching listing-ids.txt', async () => {
+    it('routes expired ids to classification and caps the rest at MAX_RECORD_EXTRACTIONS, without deduping or touching listing_ids.txt', async () => {
       config.maxRecordExtractions = 1;
       storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
         Promise.resolve(id === '2'),

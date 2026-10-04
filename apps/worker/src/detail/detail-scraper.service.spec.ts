@@ -167,7 +167,7 @@ describe('DetailScraperService', () => {
     expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
     expect(page.close).toHaveBeenCalledTimes(1);
   });
-  it('drops a previously-expired record from records_expired.txt once it is re-scraped as no longer expired', async () => {
+  it('drops a previously-expired record from scraped_records_expired.txt once it is re-scraped as no longer expired', async () => {
     storage.removeExpiredRecord.mockResolvedValue(true);
     site.extractRecordDetail.mockResolvedValue({
       sectionFound: true,
@@ -194,7 +194,7 @@ describe('DetailScraperService', () => {
     expect(storage.writeExpiredRecordDetail).not.toHaveBeenCalled();
     expect(storage.appendExpiredRecord).not.toHaveBeenCalled();
   });
-  it('migrates a previously records_xx.txt record out of the xx bucket once a real language is determined (POST /scrape/records/xx/reprocess)', async () => {
+  it('migrates a previously scraped_records_xx.txt record out of the xx bucket once a real language is determined (POST /scrape/records/xx/reprocess)', async () => {
     site.extractRecordDetail.mockResolvedValue({
       sectionFound: true,
       hasBodyContent: true,
@@ -220,7 +220,7 @@ describe('DetailScraperService', () => {
       '123',
     );
   });
-  it('does not touch records_expired.txt when persisting a still-expired record', async () => {
+  it('does not touch scraped_records_expired.txt when persisting a still-expired record', async () => {
     site.extractRecordDetail.mockResolvedValue({
       sectionFound: true,
       hasBodyContent: true,

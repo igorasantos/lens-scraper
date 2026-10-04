@@ -146,10 +146,10 @@ describe('RecordsRecycleService', () => {
     expect(storage.writeToScrapeListingIds).toHaveBeenCalledWith('run-1', []);
     expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', []);
   });
-  it('propagates a missing listing-ids.txt without touching the catalog', async () => {
-    storage.readListingIds.mockRejectedValue(new Error('No listing-ids.txt'));
+  it('propagates a missing listing_ids.txt without touching the catalog', async () => {
+    storage.readListingIds.mockRejectedValue(new Error('No listing_ids.txt'));
     const service = await buildService();
-    await expect(service.run('run-1')).rejects.toThrow('No listing-ids.txt');
+    await expect(service.run('run-1')).rejects.toThrow('No listing_ids.txt');
     expect(storage.readRecordDetailCatalog).not.toHaveBeenCalled();
     expect(dispatch.dispatchToScrape).not.toHaveBeenCalled();
   });

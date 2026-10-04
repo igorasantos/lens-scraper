@@ -171,7 +171,7 @@ export class StorageService {
   async readRawListingIds(runId: string): Promise<string[]> {
     const key = this.rawListingIdsPath(runId);
     return this.readLines(key, {
-      notFoundError: `No raw_listing_ids.txt found for run ${runId} (${key})`,
+      notFoundError: `No ${this.siteConfig.rawListingIdsFile} found for run ${runId} (${key})`,
     });
   }
   async writeListingIds(runId: string, recordIds: string[]): Promise<void> {

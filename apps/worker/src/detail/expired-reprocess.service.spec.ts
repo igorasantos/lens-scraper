@@ -25,7 +25,7 @@ describe('ExpiredReprocessService', () => {
     };
     queue = { publishRecordDetailsBatch: vi.fn().mockResolvedValue(undefined) };
   });
-  it('reads records_expired.txt, stamps a shared scheduledAt, and publishes each record under the given runId', async () => {
+  it('reads scraped_records_expired.txt, stamps a shared scheduledAt, and publishes each record under the given runId', async () => {
     storage.readExpiredRecordIds.mockResolvedValue(['1', '2']);
     const service = await buildService();
     const result = await service.run('run-1');
