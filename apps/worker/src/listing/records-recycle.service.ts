@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { QueueService } from '@app/queue';
 import { SiteConfigService } from '@app/site';
 import { StorageService, type RecordDetailCatalogEntry } from '@app/storage';
 import {
@@ -7,6 +8,7 @@ import {
 } from './listing-dispatch.service.js';
 export interface RecordsRecycleResult extends ScrapeDispatchResult {
   recycled: string[];
+  reclassified: string[];
   toScrape: string[];
 }
 @Injectable()
@@ -16,6 +18,7 @@ export class RecordsRecycleService {
     private readonly storage: StorageService,
     private readonly siteConfig: SiteConfigService,
     private readonly dispatch: ListingDispatchService,
+    private readonly queue: QueueService,
   ) {}
   async run(runId: string): Promise<RecordsRecycleResult> {
     const recordIds = await this.storage.readListingIds(runId);
@@ -29,7 +32,14 @@ export class RecordsRecycleService {
     for (const recordId of recordIds) {
       const entry = catalog.get(recordId);
       if (!entry) {
-        (alreadyRecycled.has(recordId) ? recycled : toScrape).push(recordId);
+        if (!alreadyRecycled.has(recordId)) {
+          toScrape.push(recordId);
+          continue;
+        }
+        recycled.push(recordId);
+        if (await this.storage.hasExpiredRecordDetail(recordId)) {
+          recycledExpired.push(recordId);
+        }
         continue;
       }
       await this.recycle(runId, recordId, entry, alreadyRecycled);
@@ -39,14 +49,16 @@ export class RecordsRecycleService {
       }
     }
     await this.storage.writeToScrapeListingIds(runId, toScrape);
+    if (recycledExpired.length > 0) {
+      await this.queue.publishRecordLanguageClassifyBatch(
+        recycledExpired.map((recordId) => ({ runId, recordId })),
+      );
+    }
     this.logger.log(
-      `[${runId}] Recycled ${recycled.length} record(s) from the detail catalog (${recycledExpired.length} expired); ${toScrape.length} record(s) left to scrape.`,
+      `[${runId}] Recycled ${recycled.length} record(s) from the detail catalog (${recycledExpired.length} expired, routed to language classification); ${toScrape.length} record(s) left to scrape.`,
     );
-    const result = await this.dispatch.dispatchToScrape(runId, [
-      ...toScrape,
-      ...recycledExpired,
-    ]);
-    return { ...result, recycled, toScrape };
+    const result = await this.dispatch.dispatchToScrape(runId, toScrape);
+    return { ...result, recycled, reclassified: recycledExpired, toScrape };
   }
   private async recycle(
     runId: string,

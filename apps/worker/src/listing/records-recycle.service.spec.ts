@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { QueueService } from '@app/queue';
 import { SiteConfigService } from '@app/site';
 import { StorageService, type RecordDetailCatalogEntry } from '@app/storage';
 import { ListingDispatchService } from './listing-dispatch.service.js';
@@ -12,9 +13,13 @@ describe('RecordsRecycleService', () => {
     appendRecordId: ReturnType<typeof vi.fn>;
     recycleRecordDetail: ReturnType<typeof vi.fn>;
     writeToScrapeListingIds: ReturnType<typeof vi.fn>;
+    hasExpiredRecordDetail: ReturnType<typeof vi.fn>;
   };
   let dispatch: {
     dispatchToScrape: ReturnType<typeof vi.fn>;
+  };
+  let queue: {
+    publishRecordLanguageClassifyBatch: ReturnType<typeof vi.fn>;
   };
   const siteConfig = { expiredScrapedRecordsDir: 'expired' };
   function catalogOf(
@@ -29,6 +34,7 @@ describe('RecordsRecycleService', () => {
         { provide: StorageService, useValue: storage },
         { provide: SiteConfigService, useValue: siteConfig },
         { provide: ListingDispatchService, useValue: dispatch },
+        { provide: QueueService, useValue: queue },
       ],
     }).compile();
     return module.get<RecordsRecycleService>(RecordsRecycleService);
@@ -47,13 +53,16 @@ describe('RecordsRecycleService', () => {
       appendRecordId: vi.fn().mockResolvedValue(undefined),
       recycleRecordDetail: vi.fn().mockResolvedValue(undefined),
       writeToScrapeListingIds: vi.fn().mockResolvedValue(undefined),
+      hasExpiredRecordDetail: vi.fn().mockResolvedValue(false),
     };
     dispatch = {
       dispatchToScrape: vi.fn().mockResolvedValue({
         dispatched: ['1', '3'],
-        reclassified: [],
         deferred: [],
       }),
+    };
+    queue = {
+      publishRecordLanguageClassifyBatch: vi.fn().mockResolvedValue(undefined),
     };
   });
   it("splits the run's listing ids into recycled (found in the catalog) and to-scrape, and dispatches only the latter", async () => {
@@ -79,6 +88,7 @@ describe('RecordsRecycleService', () => {
       reclassified: [],
       deferred: [],
     });
+    expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
   });
   it('records the id in the bucket file and the run file before moving the html', async () => {
     const callOrder: string[] = [];
@@ -99,7 +109,7 @@ describe('RecordsRecycleService', () => {
       'recycleRecordDetail',
     ]);
   });
-  it('moves an expired catalog entry without recording it under a language, and hands it to dispatch for language classification', async () => {
+  it('moves an expired catalog entry without recording it under a language, and routes it to language classification instead of scraping', async () => {
     storage.readRecordDetailCatalog.mockResolvedValue(
       catalogOf({
         '2': { key: '1_records_catalog/expired/2.html', bucket: 'expired' },
@@ -114,12 +124,48 @@ describe('RecordsRecycleService', () => {
       '1',
       '3',
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', [
-      '1',
-      '3',
-      '2',
+    expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
+      { runId: 'run-1', recordId: '2' },
     ]);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3']);
     expect(result.recycled).toEqual(['2']);
+    expect(result.reclassified).toEqual(['2']);
+  });
+  it('classifies an expired catalog entry only after moving it out of the catalog', async () => {
+    const callOrder: string[] = [];
+    storage.readRecordDetailCatalog.mockResolvedValue(
+      catalogOf({
+        '2': { key: '1_records_catalog/expired/2.html', bucket: 'expired' },
+      }),
+    );
+    storage.recycleRecordDetail.mockImplementation(async () => {
+      callOrder.push('recycleRecordDetail');
+    });
+    queue.publishRecordLanguageClassifyBatch.mockImplementation(async () => {
+      callOrder.push('publishRecordLanguageClassifyBatch');
+    });
+    const service = await buildService();
+    await service.run('run-1');
+    expect(callOrder).toEqual([
+      'recycleRecordDetail',
+      'publishRecordLanguageClassifyBatch',
+    ]);
+  });
+  it('on a retry, re-routes an already-recycled expired entry still awaiting classification', async () => {
+    storage.readRecycledListingIds.mockResolvedValue(['2']);
+    storage.readRecordDetailCatalog.mockResolvedValue(catalogOf({}));
+    storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
+      Promise.resolve(id === '2'),
+    );
+    const service = await buildService();
+    const result = await service.run('run-1');
+    expect(storage.recycleRecordDetail).not.toHaveBeenCalled();
+    expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
+      { runId: 'run-1', recordId: '2' },
+    ]);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3']);
+    expect(result.recycled).toEqual(['2']);
+    expect(result.reclassified).toEqual(['2']);
   });
   it('on a retry, keeps ids already recycled by a previous attempt out of to-scrape even though they left the catalog', async () => {
     storage.readRecycledListingIds.mockResolvedValue(['1', '2']);

@@ -48,7 +48,6 @@ describe('ListingDispatchService', () => {
     const result = await service.dispatch('run-1', ['1', '2', '3']);
     expect(result.dispatched).toEqual(['1', '3']);
     expect(result.skipped).toEqual(['2']);
-    expect(result.reclassified).toEqual([]);
     expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1', '3']);
     expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
     const [published] = queue.publishRecordDetailsBatch.mock.calls[0];
@@ -74,30 +73,40 @@ describe('ListingDispatchService', () => {
     expect(result).toEqual({
       dispatched: [],
       skipped: ['1', '2'],
-      reclassified: [],
       deferred: [],
     });
     expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', []);
     expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
     expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
   });
-  it('routes ids already saved under 1_records_raw/expired/ to language classification instead of a full re-scrape', async () => {
+  it('skips ids already saved under the scraped expired dir, without classifying or scraping them', async () => {
     storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
       Promise.resolve(id === '2'),
     );
     const service = await buildService();
     const result = await service.dispatch('run-1', ['1', '2', '3']);
     expect(result.dispatched).toEqual(['1', '3']);
-    expect(result.reclassified).toEqual(['2']);
-    expect(result.skipped).toEqual([]);
-    expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
-      { runId: 'run-1', recordId: '2' },
-    ]);
+    expect(result.skipped).toEqual(['2']);
+    expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1', '3']);
+    expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
     expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
     const [published] = queue.publishRecordDetailsBatch.mock.calls[0];
     expect(
       published.map((entry: { recordId: string }) => entry.recordId),
     ).toEqual(['1', '3']);
+  });
+  it('logs the full count message including ids skipped for being in the scraped expired dir', async () => {
+    const log = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => {});
+    storage.readRecordIds.mockResolvedValue(new Set(['1']));
+    storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
+      Promise.resolve(id === '2'),
+    );
+    const service = await buildService();
+    await service.dispatch('run-1', ['1', '2', '2', '3']);
+    expect(log).toHaveBeenCalledWith(
+      '[run-1] 4 record id(s) received - 1 duplicate(s) = 3 unique - 1 already in the scraped records control files - 1 already in the scraped expired dir = 1 record(s) left to dispatch.',
+    );
+    log.mockRestore();
   });
   it('caps scrape.record.detail dispatch at MAX_RECORD_EXTRACTIONS, deferring the rest', async () => {
     config.maxRecordExtractions = 2;
@@ -112,30 +121,20 @@ describe('ListingDispatchService', () => {
       ),
     ).toEqual(['1', '2']);
   });
-  it('does not let deferred ids count against the cap applied to language classification', async () => {
-    config.maxRecordExtractions = 1;
-    storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
-      Promise.resolve(id === '2'),
-    );
-    const service = await buildService();
-    const result = await service.dispatch('run-1', ['1', '2', '3']);
-    expect(result.reclassified).toEqual(['2']);
-    expect(result.dispatched).toEqual(['1']);
-    expect(result.deferred).toEqual(['3']);
-  });
-  it('routes every id to language classification and skips scrape.record.detail entirely when all of them are expired', async () => {
+  it('publishes nothing when every new id is already in the scraped expired dir', async () => {
     storage.hasExpiredRecordDetail.mockResolvedValue(true);
     const service = await buildService();
     const result = await service.dispatch('run-1', ['1', '2']);
-    expect(result.dispatched).toEqual([]);
-    expect(result.reclassified).toEqual(['1', '2']);
+    expect(result).toEqual({
+      dispatched: [],
+      skipped: ['1', '2'],
+      deferred: [],
+    });
+    expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', []);
     expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
-    expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
-      { runId: 'run-1', recordId: '1' },
-      { runId: 'run-1', recordId: '2' },
-    ]);
+    expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
   });
-  it('does not check for expired html when there is nothing left to dispatch after dedupe', async () => {
+  it('does not check for expired html for ids already in the scraped records control files', async () => {
     storage.readRecordIds.mockResolvedValue(new Set(['1']));
     const service = await buildService();
     await service.dispatch('run-1', ['1']);
@@ -175,10 +174,8 @@ describe('ListingDispatchService', () => {
       expect(result).toEqual({
         dispatched: [],
         skipped: ['2'],
-        reclassified: [],
         deferred: [],
       });
-      expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
       expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
       expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
     });
@@ -192,9 +189,24 @@ describe('ListingDispatchService', () => {
         recycle: true,
       });
       expect(log).toHaveBeenCalledWith(
-        '[run-1] 5 record id(s) received - 2 duplicate(s) = 3 unique - 1 already in the scraped records control files = 2 record(s) handed to recycling before scraping.',
+        '[run-1] 5 record id(s) received - 2 duplicate(s) = 3 unique - 1 already in the scraped records control files - 0 already in the scraped expired dir = 2 record(s) handed to recycling before scraping.',
       );
       log.mockRestore();
+    });
+    it('keeps ids already in the scraped expired dir out of listing_ids.txt so recycling never sees them', async () => {
+      storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
+        Promise.resolve(id === '2'),
+      );
+      const service = await buildService();
+      const result = await service.dispatch('run-1', ['1', '2'], {
+        recycle: true,
+      });
+      expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1']);
+      expect(result.skipped).toEqual(['2']);
+      expect(queue.publishRecordsRecycle).toHaveBeenCalledWith({
+        runId: 'run-1',
+      });
+      expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
     });
     it('does not hand anything to recycling when everything is already scraped', async () => {
       storage.readRecordIds.mockResolvedValue(new Set(['1']));
@@ -210,27 +222,24 @@ describe('ListingDispatchService', () => {
     });
   });
   describe('dispatchToScrape', () => {
-    it('routes expired ids to classification and caps the rest at MAX_RECORD_EXTRACTIONS, without deduping or touching listing_ids.txt', async () => {
-      config.maxRecordExtractions = 1;
-      storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
-        Promise.resolve(id === '2'),
-      );
+    it('caps at MAX_RECORD_EXTRACTIONS without deduping, checking for expired html, or touching listing_ids.txt', async () => {
+      config.maxRecordExtractions = 2;
       const service = await buildService();
       const result = await service.dispatchToScrape('run-1', ['1', '2', '3']);
       expect(result).toEqual({
-        dispatched: ['1'],
-        reclassified: ['2'],
+        dispatched: ['1', '2'],
         deferred: ['3'],
       });
       expect(storage.readRecordIds).not.toHaveBeenCalled();
       expect(storage.writeListingIds).not.toHaveBeenCalled();
+      expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
+      expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
     });
     it('publishes nothing for an empty list', async () => {
       const service = await buildService();
       const result = await service.dispatchToScrape('run-1', []);
       expect(result).toEqual({
         dispatched: [],
-        reclassified: [],
         deferred: [],
       });
       expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
