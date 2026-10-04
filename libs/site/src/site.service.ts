@@ -251,7 +251,9 @@ export class SiteService {
     const firstParagraph = Array.from(header.querySelectorAll('p')).find(
       (p) => innerTextOf(p).trim().length > 0,
     );
-    const title = (firstParagraph ? innerTextOf(firstParagraph) : '').trim();
+    const title = (firstParagraph ? innerTextOf(firstParagraph) : '')
+      .trim()
+      .toLowerCase();
     return title || null;
   }
 }

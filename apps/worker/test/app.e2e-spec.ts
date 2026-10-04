@@ -90,24 +90,24 @@ describe('WorkerModule (e2e)', () => {
   });
   describe('record titles dedup/filter pipeline', () => {
     it('dedupes, sorts and then filters titles through real storage', async () => {
-      await storage.appendRawRecordTitle('Widget Alpha');
-      await storage.appendRawRecordTitle('Widget Alpha');
-      await storage.appendRawRecordTitle('Gizmo Gamma');
-      await storage.appendRawRecordTitle('Gadget Beta');
+      await storage.appendRawRecordTitle('widget alpha');
+      await storage.appendRawRecordTitle('widget alpha');
+      await storage.appendRawRecordTitle('gizmo gamma');
+      await storage.appendRawRecordTitle('gadget beta');
 
       await controller.handleRecordTitlesDedupSort({ runId: 'run-e2e-1' });
       expect(await storage.readDedupSortedRecordTitles()).toEqual([
-        'Gadget Beta',
-        'Gizmo Gamma',
-        'Widget Alpha',
+        'gadget beta',
+        'gizmo gamma',
+        'widget alpha',
       ]);
 
       await controller.handleRecordTitlesFilter({
         runId: 'run-e2e-1',
-        substrings: ['widget'],
+        substrings: ['WIDGET'],
       });
       expect(await storage.readFilteredRecordTitles()).toEqual(
-        new Set(['Gadget Beta', 'Gizmo Gamma']),
+        new Set(['gadget beta', 'gizmo gamma']),
       );
     });
   });

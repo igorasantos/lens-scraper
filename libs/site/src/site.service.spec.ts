@@ -389,21 +389,26 @@ describe('SiteService', () => {
         service.extractRecordTitleFromHtml(
           asDocument('<div><a>x</a><p>Widget Alpha</p></div>'),
         ),
-      ).toBe('Widget Alpha');
+      ).toBe('widget alpha');
     });
     it('skips leading empty paragraphs to find the first non-empty one', () => {
       expect(
         service.extractRecordTitleFromHtml(
           asDocument('<div><p>   </p><p>Widget Alpha</p></div>'),
         ),
-      ).toBe('Widget Alpha');
+      ).toBe('widget alpha');
     });
     it('preserves non-collapsible Unicode whitespace (e.g. narrow no-break space)', () => {
       expect(
         service.extractRecordTitleFromHtml(
           asDocument('<div><p>Widget – Alpha</p></div>'),
         ),
-      ).toBe('Widget – Alpha');
+      ).toBe('widget – alpha');
+    });
+    it('lowercases the extracted title without touching the source html', () => {
+      const html = asDocument('<div><p>WIDGET Alpha</p></div>');
+      expect(service.extractRecordTitleFromHtml(html)).toBe('widget alpha');
+      expect(html).toContain('WIDGET Alpha');
     });
     it('returns null when there is no top-level header div', () => {
       expect(
