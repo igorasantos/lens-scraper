@@ -11,13 +11,13 @@ function sleep(ms: number): Promise<void> {
 /* v8 ignore start */
 @Injectable()
 /* v8 ignore stop */
-export class DeadLetterService {
-  private readonly logger = new Logger(DeadLetterService.name);
+export class HandlerRetryService {
+  private readonly logger = new Logger(HandlerRetryService.name);
   constructor(
     private readonly storage: StorageService,
     private readonly config: ConfigService,
   ) {}
-  async run<T>(
+  async runOrDeadLetter<T>(
     topic: string,
     target: DeadLetterTarget,
     payload: T,

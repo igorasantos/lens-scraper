@@ -10,7 +10,7 @@ import {
   type ListingPageMessage,
   type RecordsRecycleMessage,
 } from '@app/queue';
-import { DeadLetterService } from '@app/storage';
+import { HandlerRetryService } from '@app/storage';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { PendingReprocessService } from './pending-reprocess.service.js';
 import { RecordsRecycleService } from './records-recycle.service.js';
@@ -20,14 +20,14 @@ export class ListingController {
     private readonly listingCrawler: ListingCrawlerService,
     private readonly pendingReprocess: PendingReprocessService,
     private readonly recordsRecycle: RecordsRecycleService,
-    private readonly deadLetter: DeadLetterService,
+    private readonly handlerRetry: HandlerRetryService,
   ) {}
   @EventPattern(SCRAPE_LISTING_INIT_TOPIC)
   handleListingInit(
     @Payload()
     message: ListingInitMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_LISTING_INIT_TOPIC,
       { runId: message.runId },
       message,
@@ -45,7 +45,7 @@ export class ListingController {
     @Payload()
     message: ListingPageMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_LISTING_PAGE_TOPIC,
       { runId: message.runId },
       message,
@@ -57,7 +57,7 @@ export class ListingController {
     @Payload()
     message: PendingReprocessMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
       { runId: message.runId },
       message,
@@ -74,7 +74,7 @@ export class ListingController {
     @Payload()
     message: RecordsRecycleMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORDS_RECYCLE_TOPIC,
       { runId: message.runId },
       message,

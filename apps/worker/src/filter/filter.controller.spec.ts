@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeadLetterService, StorageService } from '@app/storage';
+import { HandlerRetryService, StorageService } from '@app/storage';
 import { RecordsFilterService } from './records-filter.service.js';
 import { RecordFilterCopyService } from './record-filter-copy.service.js';
 import { RecordLanguageClassifyService } from './record-language-classify.service.js';
 import { FilterController } from './filter.controller.js';
 describe('FilterController', () => {
-  let deadLetter: {
-    run: ReturnType<typeof vi.fn>;
+  let handlerRetry: {
+    runOrDeadLetter: ReturnType<typeof vi.fn>;
   };
   let filterController: FilterController;
   let recordsFilter: {
@@ -19,8 +19,8 @@ describe('FilterController', () => {
     run: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
-    deadLetter = {
-      run: vi.fn(
+    handlerRetry = {
+      runOrDeadLetter: vi.fn(
         (
           _topic: string,
           _target: unknown,
@@ -43,7 +43,7 @@ describe('FilterController', () => {
           provide: RecordLanguageClassifyService,
           useValue: recordLanguageClassify,
         },
-        { provide: DeadLetterService, useValue: deadLetter },
+        { provide: HandlerRetryService, useValue: handlerRetry },
         {
           provide: StorageService,
           useValue: {
@@ -63,7 +63,7 @@ describe('FilterController', () => {
       const message = { runId: 'run-7' };
       await filterController.handleRecordsFilter(message);
       expect(recordsFilter.run).toHaveBeenCalledWith('run-7');
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.filter',
         { runId: 'run-7' },
         message,
@@ -79,7 +79,7 @@ describe('FilterController', () => {
       };
       await filterController.handleRecordFilterCopy(message);
       expect(recordFilterCopy.run).toHaveBeenCalledWith(message);
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.record.filter.copy',
         { runId: 'run-7', recordId: '111' },
         message,
@@ -92,7 +92,7 @@ describe('FilterController', () => {
       const message = { runId: 'run-8', recordId: '123' };
       await filterController.handleRecordLanguageClassify(message);
       expect(recordLanguageClassify.run).toHaveBeenCalledWith(message);
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.record.language.classify',
         { runId: 'run-8', recordId: '123' },
         message,

@@ -8,7 +8,7 @@ import {
   type RecordLanguageClassifyMessage,
   type RecordsFilterMessage,
 } from '@app/queue';
-import { DeadLetterService, StorageService } from '@app/storage';
+import { HandlerRetryService, StorageService } from '@app/storage';
 import { RecordsFilterService } from './records-filter.service.js';
 import { RecordFilterCopyService } from './record-filter-copy.service.js';
 import { RecordLanguageClassifyService } from './record-language-classify.service.js';
@@ -18,7 +18,7 @@ export class FilterController {
     private readonly recordsFilter: RecordsFilterService,
     private readonly recordFilterCopy: RecordFilterCopyService,
     private readonly recordLanguageClassify: RecordLanguageClassifyService,
-    private readonly deadLetter: DeadLetterService,
+    private readonly handlerRetry: HandlerRetryService,
     private readonly storage: StorageService,
   ) {}
   @EventPattern(SCRAPE_RECORDS_FILTER_TOPIC)
@@ -26,7 +26,7 @@ export class FilterController {
     @Payload()
     message: RecordsFilterMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORDS_FILTER_TOPIC,
       { runId: message.runId },
       message,
@@ -38,7 +38,7 @@ export class FilterController {
     @Payload()
     message: RecordFilterCopyMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORD_FILTER_COPY_TOPIC,
       {
         runId: message.runId,
@@ -53,7 +53,7 @@ export class FilterController {
     @Payload()
     message: RecordLanguageClassifyMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORD_LANGUAGE_CLASSIFY_TOPIC,
       { runId: message.runId, recordId: message.recordId },
       message,

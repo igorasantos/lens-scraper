@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeadLetterService } from '@app/storage';
+import { HandlerRetryService } from '@app/storage';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { PendingReprocessService } from './pending-reprocess.service.js';
 import { RecordsRecycleService } from './records-recycle.service.js';
 import { ListingController } from './listing.controller.js';
 describe('ListingController', () => {
-  let deadLetter: {
-    run: ReturnType<typeof vi.fn>;
+  let handlerRetry: {
+    runOrDeadLetter: ReturnType<typeof vi.fn>;
   };
   let listingController: ListingController;
   let listingCrawler: {
@@ -20,8 +20,8 @@ describe('ListingController', () => {
     run: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
-    deadLetter = {
-      run: vi.fn(
+    handlerRetry = {
+      runOrDeadLetter: vi.fn(
         (
           _topic: string,
           _target: unknown,
@@ -49,7 +49,7 @@ describe('ListingController', () => {
         { provide: ListingCrawlerService, useValue: listingCrawler },
         { provide: PendingReprocessService, useValue: pendingReprocess },
         { provide: RecordsRecycleService, useValue: recordsRecycle },
-        { provide: DeadLetterService, useValue: deadLetter },
+        { provide: HandlerRetryService, useValue: handlerRetry },
       ],
     }).compile();
     listingController = app.get<ListingController>(ListingController);
@@ -64,7 +64,7 @@ describe('ListingController', () => {
         undefined,
         undefined,
       );
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.listing.init',
         { runId: 'run-1' },
         message,
@@ -112,7 +112,7 @@ describe('ListingController', () => {
       };
       await listingController.handleListingPage(message);
       expect(listingCrawler.continuePage).toHaveBeenCalledWith(message);
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.listing.page',
         { runId: 'run-1' },
         message,
@@ -129,7 +129,7 @@ describe('ListingController', () => {
         'run-1',
         undefined,
       );
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.pending.reprocess',
         { runId: 'run-2' },
         message,
@@ -147,7 +147,7 @@ describe('ListingController', () => {
       const message = { runId: 'run-1' };
       await listingController.handleRecordsRecycle(message);
       expect(recordsRecycle.run).toHaveBeenCalledWith('run-1');
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.recycle',
         { runId: 'run-1' },
         message,

@@ -1,10 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@app/config';
-import { DeadLetterService } from './dead-letter.service.js';
+import { HandlerRetryService } from './handler-retry.service.js';
 import { StorageService } from './storage.service.js';
-describe('DeadLetterService', () => {
-  let service: DeadLetterService;
+describe('HandlerRetryService', () => {
+  let service: HandlerRetryService;
   let storage: {
     appendDeadLetterRecordId: ReturnType<typeof vi.fn>;
     appendDeadLetterPayload: ReturnType<typeof vi.fn>;
@@ -25,7 +25,7 @@ describe('DeadLetterService', () => {
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        DeadLetterService,
+        HandlerRetryService,
         { provide: StorageService, useValue: storage },
         {
           provide: ConfigService,
@@ -33,14 +33,14 @@ describe('DeadLetterService', () => {
         },
       ],
     }).compile();
-    service = module.get<DeadLetterService>(DeadLetterService);
+    service = module.get<HandlerRetryService>(HandlerRetryService);
   });
   afterEach(() => {
     vi.restoreAllMocks();
   });
   it('returns without writing a dead letter when the handler succeeds', async () => {
     const handle = vi.fn().mockResolvedValue(undefined);
-    await service.run(
+    await service.runOrDeadLetter(
       'scrape.record.detail',
       { runId: 'run-1', recordId: '1' },
       { recordId: '1' },
@@ -55,7 +55,7 @@ describe('DeadLetterService', () => {
       .fn()
       .mockRejectedValueOnce(new Error('transient'))
       .mockResolvedValueOnce(undefined);
-    await service.run(
+    await service.runOrDeadLetter(
       'scrape.record.detail',
       { runId: 'run-1', recordId: '1' },
       { recordId: '1' },
@@ -67,7 +67,7 @@ describe('DeadLetterService', () => {
   });
   it('appends only the record id once retries are exhausted for a record-scoped target', async () => {
     const handle = vi.fn().mockRejectedValue(new Error('boom'));
-    await service.run(
+    await service.runOrDeadLetter(
       'scrape.record.detail',
       { runId: 'run-1', recordId: '1' },
       { recordId: '1', scheduledAt: 'now' },
@@ -87,7 +87,7 @@ describe('DeadLetterService', () => {
   it('appends the payload, attempts and error once retries are exhausted for a run-scoped target', async () => {
     const handle = vi.fn().mockRejectedValue(new Error('boom'));
     const payload = { runId: 'run-1', baseUrl: 'https://example.com' };
-    await service.run(
+    await service.runOrDeadLetter(
       'scrape.listing.init',
       { runId: 'run-1' },
       payload,
@@ -112,7 +112,12 @@ describe('DeadLetterService', () => {
   });
   it('records a string message and no stack when the handler rejects with a non-Error value', async () => {
     const handle = vi.fn().mockRejectedValue('nope');
-    await service.run('scrape.listing.init', { runId: 'run-1' }, {}, handle);
+    await service.runOrDeadLetter(
+      'scrape.listing.init',
+      { runId: 'run-1' },
+      {},
+      handle,
+    );
     const [, , entry] = storage.appendDeadLetterPayload.mock.calls[0] as [
       string,
       string,

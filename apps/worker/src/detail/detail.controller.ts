@@ -8,7 +8,7 @@ import {
   type RecordDetailMessage,
   type XxReprocessMessage,
 } from '@app/queue';
-import { DeadLetterService } from '@app/storage';
+import { HandlerRetryService } from '@app/storage';
 import { DetailScraperService } from './detail-scraper.service.js';
 import { ExpiredReprocessService } from './expired-reprocess.service.js';
 import { XxReprocessService } from './xx-reprocess.service.js';
@@ -19,14 +19,14 @@ export class DetailController {
     private readonly detailScraper: DetailScraperService,
     private readonly expiredReprocess: ExpiredReprocessService,
     private readonly xxReprocess: XxReprocessService,
-    private readonly deadLetter: DeadLetterService,
+    private readonly handlerRetry: HandlerRetryService,
   ) {}
   @EventPattern(SCRAPE_RECORD_DETAIL_TOPIC)
   handleRecordDetail(
     @Payload()
     message: RecordDetailMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORD_DETAIL_TOPIC,
       { runId: message.runId ?? MANUAL_RUN_ID, recordId: message.recordId },
       message,
@@ -38,7 +38,7 @@ export class DetailController {
     @Payload()
     message: ExpiredReprocessMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC,
       { runId: message.runId },
       message,
@@ -50,7 +50,7 @@ export class DetailController {
     @Payload()
     message: XxReprocessMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
       { runId: message.runId },
       message,

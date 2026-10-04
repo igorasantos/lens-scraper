@@ -10,7 +10,7 @@ import {
   type RecordTitlesExtractMessage,
   type RecordTitlesFilterMessage,
 } from '@app/queue';
-import { DeadLetterService, StorageService } from '@app/storage';
+import { HandlerRetryService, StorageService } from '@app/storage';
 import { RecordTitlesExtractService } from './record-titles-extract.service.js';
 import { RecordTitleExtractService } from './record-title-extract.service.js';
 import { RecordTitlesDedupSortService } from './record-titles-dedup-sort.service.js';
@@ -22,7 +22,7 @@ export class TitlesController {
     private readonly recordTitleExtract: RecordTitleExtractService,
     private readonly recordTitlesDedupSort: RecordTitlesDedupSortService,
     private readonly recordTitlesFilter: RecordTitlesFilterService,
-    private readonly deadLetter: DeadLetterService,
+    private readonly handlerRetry: HandlerRetryService,
     private readonly storage: StorageService,
   ) {}
   @EventPattern(SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC)
@@ -30,7 +30,7 @@ export class TitlesController {
     @Payload()
     message: RecordTitlesExtractMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORDS_TITLES_EXTRACT_TOPIC,
       { runId: message.runId },
       message,
@@ -42,7 +42,7 @@ export class TitlesController {
     @Payload()
     message: RecordTitleExtractMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORD_TITLE_EXTRACT_TOPIC,
       {
         runId: message.runId,
@@ -57,7 +57,7 @@ export class TitlesController {
     @Payload()
     message: RecordTitlesDedupSortMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORD_TITLES_DEDUP_SORT_TOPIC,
       { runId: message.runId },
       message,
@@ -69,7 +69,7 @@ export class TitlesController {
     @Payload()
     message: RecordTitlesFilterMessage,
   ): Promise<void> {
-    return this.deadLetter.run(
+    return this.handlerRetry.runOrDeadLetter(
       SCRAPE_RECORD_TITLES_FILTER_TOPIC,
       { runId: message.runId },
       message,

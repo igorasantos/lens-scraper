@@ -1,12 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DeadLetterService } from '@app/storage';
+import { HandlerRetryService } from '@app/storage';
 import { DetailScraperService } from './detail-scraper.service.js';
 import { ExpiredReprocessService } from './expired-reprocess.service.js';
 import { XxReprocessService } from './xx-reprocess.service.js';
 import { DetailController } from './detail.controller.js';
 describe('DetailController', () => {
-  let deadLetter: {
-    run: ReturnType<typeof vi.fn>;
+  let handlerRetry: {
+    runOrDeadLetter: ReturnType<typeof vi.fn>;
   };
   let detailController: DetailController;
   let detailScraper: {
@@ -19,8 +19,8 @@ describe('DetailController', () => {
     run: ReturnType<typeof vi.fn>;
   };
   beforeEach(async () => {
-    deadLetter = {
-      run: vi.fn(
+    handlerRetry = {
+      runOrDeadLetter: vi.fn(
         (
           _topic: string,
           _target: unknown,
@@ -42,7 +42,7 @@ describe('DetailController', () => {
         { provide: DetailScraperService, useValue: detailScraper },
         { provide: ExpiredReprocessService, useValue: expiredReprocess },
         { provide: XxReprocessService, useValue: xxReprocess },
-        { provide: DeadLetterService, useValue: deadLetter },
+        { provide: HandlerRetryService, useValue: handlerRetry },
       ],
     }).compile();
     detailController = app.get<DetailController>(DetailController);
@@ -55,7 +55,7 @@ describe('DetailController', () => {
       };
       await detailController.handleRecordDetail(message);
       expect(detailScraper.handle).toHaveBeenCalledWith(message);
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.record.detail',
         { runId: 'manual', recordId: '123' },
         message,
@@ -69,7 +69,7 @@ describe('DetailController', () => {
         runId: 'run-9',
       };
       await detailController.handleRecordDetail(message);
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.record.detail',
         { runId: 'run-9', recordId: '123' },
         message,
@@ -82,7 +82,7 @@ describe('DetailController', () => {
       const message = { runId: 'run-3' };
       await detailController.handleExpiredReprocess(message);
       expect(expiredReprocess.run).toHaveBeenCalledWith('run-3');
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.expired.reprocess',
         { runId: 'run-3' },
         message,
@@ -95,7 +95,7 @@ describe('DetailController', () => {
       const message = { runId: 'run-3b' };
       await detailController.handleXxReprocess(message);
       expect(xxReprocess.run).toHaveBeenCalledWith('run-3b');
-      expect(deadLetter.run).toHaveBeenCalledWith(
+      expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.xx.reprocess',
         { runId: 'run-3b' },
         message,
