@@ -263,7 +263,35 @@ describe('DetailScraperService', () => {
       'source-alpha',
       '<div>about source</div>',
     );
-    expect(storage.appendRecordId).toHaveBeenCalledWith('123', 'xx');
+    expect(storage.appendRecordId).not.toHaveBeenCalled();
+    expect(storage.migrateOutOfUnknownLanguageBucket).toHaveBeenCalledWith(
+      '123',
+    );
+  });
+  it('records an expired record only in scraped_records_expired.txt, not in the file of its detected language', async () => {
+    site.extractRecordDetail.mockResolvedValue({
+      sectionFound: true,
+      hasBodyContent: true,
+      html: '<div>ok</div>',
+      bodyContentText:
+        'Our platform focuses on APIs.',
+      sourceName: null,
+      sourceHtml: null,
+      isExpired: true,
+    });
+    const service = await buildService();
+    await service.handle({
+      recordId: '123',
+      scheduledAt: pastScheduledAt,
+      runId: 'run-1',
+    });
+    expect(storage.appendExpiredRecord).toHaveBeenCalledWith('123');
+    expect(storage.writeExpiredRecordDetail).toHaveBeenCalledWith(
+      '123',
+      '<div>ok</div>',
+    );
+    expect(storage.writeRecordDetail).not.toHaveBeenCalled();
+    expect(storage.appendRecordId).not.toHaveBeenCalled();
     expect(storage.migrateOutOfUnknownLanguageBucket).toHaveBeenCalledWith(
       '123',
     );

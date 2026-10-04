@@ -175,7 +175,9 @@ export class DetailScraperService {
         }
       }
     }
-    await this.storage.appendRecordId(recordId, languageAlpha2);
+    if (!result.isExpired) {
+      await this.storage.appendRecordId(recordId, languageAlpha2);
+    }
     if (result.isExpired || languageAlpha2 !== UNKNOWN_LANGUAGE_ALPHA2) {
       await this.storage.migrateOutOfUnknownLanguageBucket(recordId);
     }
