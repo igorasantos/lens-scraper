@@ -50,7 +50,9 @@ export class JsonLogger implements LoggerService {
         ? (optionalParams.at(-1) as string)
         : undefined;
     const trace =
-      level === 'error' && optionalParams.length > 1
+      level === 'error' &&
+      optionalParams.length > 1 &&
+      optionalParams[0] !== undefined
         ? String(optionalParams[0])
         : undefined;
     const entry: LogEntry = {

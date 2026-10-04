@@ -10,7 +10,7 @@ import {
 import { StorageService } from '@app/storage';
 import { LOCK_PORT, SESSION_LOCK_KEY, type LockPort } from '@app/redis-lock';
 import { ConfigService } from '@app/config';
-import type { RecordDetailMessage } from '@app/queue';
+import { QueueService, type RecordDetailMessage } from '@app/queue';
 import { sleep, waitUntil } from '../common/pacing.util.js';
 import { MANUAL_RUN_ID } from '../common/run-id.js';
 function extractionExceededMessage(attempts: number): string {
@@ -26,6 +26,7 @@ export class DetailScraperService {
     @Inject(LOCK_PORT)
     private readonly lock: LockPort,
     private readonly config: ConfigService,
+    private readonly queue: QueueService,
   ) {}
   async handle(message: RecordDetailMessage): Promise<void> {
     const { recordId } = message;
@@ -36,9 +37,11 @@ export class DetailScraperService {
       this.config.lockTtlMs,
     );
     if (!token) {
-      throw new Error(
-        `[${recordId}] Could not acquire the site session lock; another worker holds it.`,
+      await this.queue.publishRecordDetail(message);
+      this.logger.debug(
+        `[${recordId}] Site session lock is busy; requeued the record detail message.`,
       );
+      return;
     }
     try {
       await this.scrape(runId, message, token);

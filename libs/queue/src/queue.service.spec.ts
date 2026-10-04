@@ -93,6 +93,18 @@ describe('QueueService', () => {
     await service.publishRecordDetailsBatch([]);
     expect(queuePort.publish).not.toHaveBeenCalled();
   });
+  it('publishes a single record detail message to the record detail topic', async () => {
+    const message = {
+      recordId: '1',
+      scheduledAt: '2026-01-01T00:00:00.000Z',
+      runId: 'run-1',
+    };
+    await service.publishRecordDetail(message);
+    expect(queuePort.publish).toHaveBeenCalledWith(
+      SCRAPE_RECORD_DETAIL_TOPIC,
+      message,
+    );
+  });
   it('publishes an expired reprocess message to the expired reprocess topic', async () => {
     const message = { runId: 'run-1' };
     await service.publishExpiredReprocess(message);

@@ -52,6 +52,9 @@ export class QueueService {
   publishRecordsRecycle(message: RecordsRecycleMessage): Promise<void> {
     return this.emit(SCRAPE_RECORDS_RECYCLE_TOPIC, message);
   }
+  publishRecordDetail(message: RecordDetailMessage): Promise<void> {
+    return this.emit(SCRAPE_RECORD_DETAIL_TOPIC, message);
+  }
   publishRecordDetailsBatch(messages: RecordDetailMessage[]): Promise<void> {
     return this.publishBatch(SCRAPE_RECORD_DETAIL_TOPIC, messages);
   }

@@ -42,6 +42,12 @@ describe('JsonLogger', () => {
       context: 'MyContext',
     });
   });
+  it('omits trace when error() receives an undefined stack before the context (as Nest Logger pads it)', () => {
+    new JsonLogger({ pretty: false }).error('boom', undefined, 'MyContext');
+    const entry = lastEntry(stderrSpy);
+    expect(entry).toMatchObject({ message: 'boom', context: 'MyContext' });
+    expect(entry.trace).toBeUndefined();
+  });
   it('omits context when no trailing string param is given', () => {
     new JsonLogger({ pretty: false }).warn('careful');
     expect(lastEntry(stdoutSpy).context).toBeUndefined();

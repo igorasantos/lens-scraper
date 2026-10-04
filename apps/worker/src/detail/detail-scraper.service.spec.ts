@@ -5,6 +5,7 @@ import { SiteService } from '@app/site';
 import { StorageService } from '@app/storage';
 import { LOCK_PORT, SESSION_LOCK_KEY } from '@app/redis-lock';
 import { ConfigService } from '@app/config';
+import { QueueService } from '@app/queue';
 import { DetailScraperService } from './detail-scraper.service.js';
 describe('DetailScraperService', () => {
   const pastScheduledAt = new Date(Date.now() - 1000).toISOString();
@@ -57,6 +58,9 @@ describe('DetailScraperService', () => {
     recordDetailWaitMinSec: number;
     recordDetailWaitMaxSec: number;
   };
+  let queue: {
+    publishRecordDetail: ReturnType<typeof vi.fn>;
+  };
   async function buildService(): Promise<DetailScraperService> {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -66,6 +70,7 @@ describe('DetailScraperService', () => {
         { provide: StorageService, useValue: storage },
         { provide: LOCK_PORT, useValue: lock },
         { provide: ConfigService, useValue: config },
+        { provide: QueueService, useValue: queue },
       ],
     }).compile();
     return module.get<DetailScraperService>(DetailScraperService);
@@ -118,6 +123,9 @@ describe('DetailScraperService', () => {
       lockTtlMs: 90000,
       recordDetailWaitMinSec: 0,
       recordDetailWaitMaxSec: 0,
+    };
+    queue = {
+      publishRecordDetail: vi.fn().mockResolvedValue(undefined),
     };
   });
   it('acquires the session lock, extracts on the first successful attempt, persists under the guessed language, and releases the lock', async () => {
@@ -642,18 +650,37 @@ describe('DetailScraperService', () => {
       '<div/>',
     );
   });
-  it('throws and never touches the browser when the session lock is already held', async () => {
+  it('requeues the message without throwing or touching the browser when the session lock is already held', async () => {
     lock.acquire.mockResolvedValue(null);
     const service = await buildService();
-    await expect(
-      service.handle({
-        recordId: '123',
-        scheduledAt: pastScheduledAt,
-        runId: 'run-1',
-      }),
-    ).rejects.toThrow();
+    const message = {
+      recordId: '123',
+      scheduledAt: pastScheduledAt,
+      runId: 'run-1',
+    };
+    await expect(service.handle(message)).resolves.toBeUndefined();
+    expect(queue.publishRecordDetail).toHaveBeenCalledWith(message);
     expect(browser.newPage).not.toHaveBeenCalled();
     expect(lock.release).not.toHaveBeenCalled();
+    expect(storage.appendFailure).not.toHaveBeenCalled();
+  });
+  it('does not requeue when the session lock is acquired', async () => {
+    site.extractRecordDetail.mockResolvedValue({
+      sectionFound: true,
+      hasBodyContent: true,
+      html: '<div>ok</div>',
+      bodyContentText: null,
+      sourceName: null,
+      sourceHtml: null,
+      isExpired: false,
+    });
+    const service = await buildService();
+    await service.handle({
+      recordId: '123',
+      scheduledAt: pastScheduledAt,
+      runId: 'run-1',
+    });
+    expect(queue.publishRecordDetail).not.toHaveBeenCalled();
   });
   it('releases the lock and closes the page even if extraction throws', async () => {
     site.extractRecordDetail.mockRejectedValue(new Error('boom'));
