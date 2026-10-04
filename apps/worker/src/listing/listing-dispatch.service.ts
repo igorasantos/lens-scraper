@@ -34,7 +34,6 @@ export class ListingDispatchService {
     const toDispatch = notInControlFiles.filter((_id, i) => !expiredFlags[i]);
     const dispatchable = new Set(toDispatch);
     const skipped = uniqueRecordIds.filter((id) => !dispatchable.has(id));
-    await this.storage.writeListingIds(runId, toDispatch);
     const duplicates = recordIds.length - uniqueRecordIds.length;
     const alreadyScraped = uniqueRecordIds.length - notInControlFiles.length;
     const expired = notInControlFiles.length - toDispatch.length;
@@ -46,6 +45,7 @@ export class ListingDispatchService {
       return { dispatched: [], skipped, deferred: [] };
     }
     if (recycle) {
+      await this.storage.writeListingIds(runId, toDispatch);
       await this.queue.publishRecordsRecycle({ runId });
       this.logger.log(
         `[${runId}] ${countMessage} = ${toDispatch.length} record(s) handed to recycling before scraping.`,

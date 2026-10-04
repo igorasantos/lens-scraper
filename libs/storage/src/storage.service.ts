@@ -177,7 +177,7 @@ export class StorageService {
   async writeListingIds(runId: string, recordIds: string[]): Promise<void> {
     const key = this.listingIdsPath(runId);
     await this.storage.write(key, recordIds.map((id) => `${id}\n`).join(''));
-    this.logger.debug(`Wrote ${recordIds.length} record id(s) to ${key}`);
+    this.logger.debug(`Wrote new record ids to ${key}`);
   }
   async readListingIds(runId: string): Promise<string[]> {
     const key = this.listingIdsPath(runId);

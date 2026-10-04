@@ -38,7 +38,7 @@ const validConfig = {
     sourceDetailDir: '0_sources',
     recordTitlesDir: '2_record_titles',
     recordsFilteredDir: '3_records_filtered',
-    listingIdsFile: 'listing_ids.txt',
+    listingIdsFile: 'listing_ids_new.txt',
     rawListingIdsFile: 'raw_listing_ids.txt',
     listingRecycledIdsFile: 'listing_ids_recycled.txt',
     listingIdsToScrapeFile: 'listing_ids_to_scrape.txt',
@@ -103,7 +103,7 @@ describe('SiteConfigService', () => {
     expect(service.sourceDetailDir).toBe('0_sources');
     expect(service.recordTitlesDir).toBe('2_record_titles');
     expect(service.recordsFilteredDir).toBe('3_records_filtered');
-    expect(service.listingIdsFile).toBe('listing_ids.txt');
+    expect(service.listingIdsFile).toBe('listing_ids_new.txt');
     expect(service.rawListingIdsFile).toBe('raw_listing_ids.txt');
     expect(service.listingRecycledIdsFile).toBe('listing_ids_recycled.txt');
     expect(service.listingIdsToScrapeFile).toBe('listing_ids_to_scrape.txt');

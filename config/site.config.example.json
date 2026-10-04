@@ -37,7 +37,7 @@
     "sourceDetailDir": "0_sources",
     "recordTitlesDir": "2_record_titles",
     "recordsFilteredDir": "3_records_filtered",
-    "listingIdsFile": "listing_ids.txt",
+    "listingIdsFile": "listing_ids_new.txt",
     "rawListingIdsFile": "raw_listing_ids.txt",
     "listingRecycledIdsFile": "listing_ids_recycled.txt",
     "listingIdsToScrapeFile": "listing_ids_to_scrape.txt",

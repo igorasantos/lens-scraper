@@ -48,7 +48,7 @@ describe('ListingDispatchService', () => {
     const result = await service.dispatch('run-1', ['1', '2', '3']);
     expect(result.dispatched).toEqual(['1', '3']);
     expect(result.skipped).toEqual(['2']);
-    expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1', '3']);
+    expect(storage.writeListingIds).not.toHaveBeenCalled();
     expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
     const [published] = queue.publishRecordDetailsBatch.mock.calls[0];
     expect(published).toHaveLength(2);
@@ -75,7 +75,7 @@ describe('ListingDispatchService', () => {
       skipped: ['1', '2'],
       deferred: [],
     });
-    expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', []);
+    expect(storage.writeListingIds).not.toHaveBeenCalled();
     expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
     expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
   });
@@ -87,7 +87,7 @@ describe('ListingDispatchService', () => {
     const result = await service.dispatch('run-1', ['1', '2', '3']);
     expect(result.dispatched).toEqual(['1', '3']);
     expect(result.skipped).toEqual(['2']);
-    expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1', '3']);
+    expect(storage.writeListingIds).not.toHaveBeenCalled();
     expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
     expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
     const [published] = queue.publishRecordDetailsBatch.mock.calls[0];
@@ -130,7 +130,7 @@ describe('ListingDispatchService', () => {
       skipped: ['1', '2'],
       deferred: [],
     });
-    expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', []);
+    expect(storage.writeListingIds).not.toHaveBeenCalled();
     expect(queue.publishRecordDetailsBatch).not.toHaveBeenCalled();
     expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
   });
@@ -140,20 +140,8 @@ describe('ListingDispatchService', () => {
     await service.dispatch('run-1', ['1']);
     expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
   });
-  it('writes listing_ids.txt before publishing anything to the queue', async () => {
-    const callOrder: string[] = [];
-    storage.writeListingIds.mockImplementation(async () => {
-      callOrder.push('writeListingIds');
-    });
-    queue.publishRecordDetailsBatch.mockImplementation(async () => {
-      callOrder.push('publishRecordDetailsBatch');
-    });
-    const service = await buildService();
-    await service.dispatch('run-1', ['1', '2']);
-    expect(callOrder).toEqual(['writeListingIds', 'publishRecordDetailsBatch']);
-  });
   describe('with recycle', () => {
-    it('writes listing_ids.txt, then hands the run to recycling instead of publishing any detail or classify task', async () => {
+    it('writes listing_ids_new.txt, then hands the run to recycling instead of publishing any detail or classify task', async () => {
       const callOrder: string[] = [];
       storage.readRecordIds.mockResolvedValue(new Set(['2']));
       storage.writeListingIds.mockImplementation(async () => {
@@ -193,7 +181,7 @@ describe('ListingDispatchService', () => {
       );
       log.mockRestore();
     });
-    it('keeps ids already in the scraped expired dir out of listing_ids.txt so recycling never sees them', async () => {
+    it('keeps ids already in the scraped expired dir out of listing_ids_new.txt so recycling never sees them', async () => {
       storage.hasExpiredRecordDetail.mockImplementation((id: string) =>
         Promise.resolve(id === '2'),
       );
@@ -212,17 +200,19 @@ describe('ListingDispatchService', () => {
       storage.readRecordIds.mockResolvedValue(new Set(['1']));
       const service = await buildService();
       await service.dispatch('run-1', ['1'], { recycle: true });
+      expect(storage.writeListingIds).not.toHaveBeenCalled();
       expect(queue.publishRecordsRecycle).not.toHaveBeenCalled();
     });
-    it('does not recycle when the flag is false', async () => {
+    it('does not recycle or write listing_ids_new.txt when the flag is false', async () => {
       const service = await buildService();
       await service.dispatch('run-1', ['1'], { recycle: false });
+      expect(storage.writeListingIds).not.toHaveBeenCalled();
       expect(queue.publishRecordsRecycle).not.toHaveBeenCalled();
       expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
     });
   });
   describe('dispatchToScrape', () => {
-    it('caps at MAX_RECORD_EXTRACTIONS without deduping, checking for expired html, or touching listing_ids.txt', async () => {
+    it('caps at MAX_RECORD_EXTRACTIONS without deduping, checking for expired html, or touching listing_ids_new.txt', async () => {
       config.maxRecordExtractions = 2;
       const service = await buildService();
       const result = await service.dispatchToScrape('run-1', ['1', '2', '3']);

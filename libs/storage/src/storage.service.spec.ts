@@ -22,7 +22,7 @@ class FakeSiteConfigService {
   sourceDetailDir = '0_sources';
   recordTitlesDir = '2_record_titles';
   recordsFilteredDir = '3_records_filtered';
-  listingIdsFile = 'listing_ids.txt';
+  listingIdsFile = 'listing_ids_new.txt';
   rawListingIdsFile = 'raw_listing_ids.txt';
   listingRecycledIdsFile = 'listing_ids_recycled.txt';
   listingIdsToScrapeFile = 'listing_ids_to_scrape.txt';
@@ -159,7 +159,7 @@ describe('StorageService', () => {
   });
   it('builds the listing_ids key under runs/<runId>', () => {
     expect(service.listingIdsPath('run-1')).toBe(
-      join('runs', 'run-1', 'listing_ids.txt'),
+      join('runs', 'run-1', 'listing_ids_new.txt'),
     );
   });
   it('builds the raw-listing_ids key under runs/<runId>', () => {
@@ -415,15 +415,15 @@ describe('StorageService', () => {
   });
   describe('record detail catalog recycling', () => {
     it('readListingIds returns the trimmed, non-empty ids of the run', async () => {
-      storage.files.set(join('runs', 'run-1', 'listing_ids.txt'), '1\n 2 \n\n');
+      storage.files.set(join('runs', 'run-1', 'listing_ids_new.txt'), '1\n 2 \n\n');
       await expect(service.readListingIds('run-1')).resolves.toEqual([
         '1',
         '2',
       ]);
     });
-    it('readListingIds throws a descriptive error when the run has no listing_ids.txt', async () => {
+    it('readListingIds throws a descriptive error when the run has no listing_ids_new.txt', async () => {
       await expect(service.readListingIds('run-1')).rejects.toThrow(
-        'No listing_ids.txt found for run run-1',
+        'No listing_ids_new.txt found for run run-1',
       );
     });
     it('builds the recycled and to-scrape listing ids keys under runs/<runId>', () => {
