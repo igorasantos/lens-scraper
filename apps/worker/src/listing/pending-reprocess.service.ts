@@ -16,8 +16,9 @@ export class PendingReprocessService {
     runId: string,
     fromRunId: string,
     recycle = false,
+    dispatchCount?: number,
   ): Promise<ListingDispatchResult> {
     const recordIds = await this.storage.readRawListingIds(fromRunId);
-    return this.dispatch.dispatch(runId, recordIds, { recycle });
+    return this.dispatch.dispatch(runId, recordIds, { recycle, dispatchCount });
   }
 }

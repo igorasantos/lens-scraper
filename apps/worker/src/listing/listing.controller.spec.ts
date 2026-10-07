@@ -63,6 +63,7 @@ describe('ListingController', () => {
         'https://example.com',
         undefined,
         undefined,
+        undefined,
       );
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.listing.init',
@@ -83,6 +84,7 @@ describe('ListingController', () => {
         'https://example.com',
         3,
         undefined,
+        undefined,
       );
     });
     it('passes recycle through to ListingCrawlerService.start', async () => {
@@ -97,6 +99,22 @@ describe('ListingController', () => {
         'https://example.com',
         undefined,
         true,
+        undefined,
+      );
+    });
+    it('passes dispatchCount through to ListingCrawlerService.start', async () => {
+      const message = {
+        runId: 'run-1',
+        baseUrl: 'https://example.com',
+        dispatchCount: 5,
+      };
+      await listingController.handleListingInit(message);
+      expect(listingCrawler.start).toHaveBeenCalledWith(
+        'run-1',
+        'https://example.com',
+        undefined,
+        undefined,
+        5,
       );
     });
   });
@@ -128,6 +146,7 @@ describe('ListingController', () => {
         'run-2',
         'run-1',
         undefined,
+        undefined,
       );
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.pending.reprocess',
@@ -139,14 +158,36 @@ describe('ListingController', () => {
     it('passes recycle through to PendingReprocessService', async () => {
       const message = { runId: 'run-2', fromRunId: 'run-1', recycle: true };
       await listingController.handlePendingReprocess(message);
-      expect(pendingReprocess.run).toHaveBeenCalledWith('run-2', 'run-1', true);
+      expect(pendingReprocess.run).toHaveBeenCalledWith(
+        'run-2',
+        'run-1',
+        true,
+        undefined,
+      );
+    });
+    it('passes dispatchCount through to PendingReprocessService', async () => {
+      const message = { runId: 'run-2', fromRunId: 'run-1', dispatchCount: 5 };
+      await listingController.handlePendingReprocess(message);
+      expect(pendingReprocess.run).toHaveBeenCalledWith(
+        'run-2',
+        'run-1',
+        undefined,
+        5,
+      );
     });
   });
   describe('handleRecordsRecycle', () => {
+    it('passes dispatchCount through to RecordsRecycleService', async () => {
+      await listingController.handleRecordsRecycle({
+        runId: 'run-1',
+        dispatchCount: 5,
+      });
+      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1', 5);
+    });
     it('delegates to RecordsRecycleService', async () => {
       const message = { runId: 'run-1' };
       await listingController.handleRecordsRecycle(message);
-      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1');
+      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1', undefined);
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.recycle',
         { runId: 'run-1' },

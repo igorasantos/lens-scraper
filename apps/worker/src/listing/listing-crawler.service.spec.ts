@@ -146,6 +146,19 @@ describe('ListingCrawlerService', () => {
         recycle: true,
       });
     });
+    it('carries dispatchCount on every published page and into dispatch', async () => {
+      site.extractRecordIds.mockResolvedValue(['1']);
+      const service = await buildService();
+      await service.start('run-1', baseUrl, 1, false, 5);
+      const [published] = queue.publishListingPage.mock.calls[0];
+      expect(published).toMatchObject({ dispatchCount: 5 });
+      config.maxListingPages = 1;
+      await service.start('run-2', baseUrl, 1, false, 5);
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1'], {
+        recycle: false,
+        dispatchCount: 5,
+      });
+    });
     it('dispatches and releases the lock immediately when the first page is already empty', async () => {
       site.extractRecordIds.mockResolvedValue([]);
       const service = await buildService();

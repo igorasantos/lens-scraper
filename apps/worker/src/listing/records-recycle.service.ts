@@ -20,7 +20,10 @@ export class RecordsRecycleService {
     private readonly dispatch: ListingDispatchService,
     private readonly queue: QueueService,
   ) {}
-  async run(runId: string): Promise<RecordsRecycleResult> {
+  async run(
+    runId: string,
+    dispatchCount?: number,
+  ): Promise<RecordsRecycleResult> {
     const recordIds = await this.storage.readListingIds(runId);
     const catalog = await this.storage.readRecordDetailCatalog();
     const alreadyRecycled = new Set(
@@ -57,7 +60,11 @@ export class RecordsRecycleService {
     this.logger.log(
       `[${runId}] Recycled ${recycled.length} record(s) from the detail catalog (${recycledExpired.length} expired, routed to language classification); ${toScrape.length} record(s) left to scrape.`,
     );
-    const result = await this.dispatch.dispatchToScrape(runId, toScrape);
+    const result = await this.dispatch.dispatchToScrape(
+      runId,
+      toScrape,
+      dispatchCount,
+    );
     return { ...result, recycled, reclassified: recycledExpired, toScrape };
   }
   private async recycle(

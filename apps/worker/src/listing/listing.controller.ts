@@ -37,6 +37,7 @@ export class ListingController {
           message.baseUrl,
           message.startPage,
           message.recycle,
+          message.dispatchCount,
         ),
     );
   }
@@ -66,6 +67,7 @@ export class ListingController {
           message.runId,
           message.fromRunId,
           message.recycle,
+          message.dispatchCount,
         ),
     );
   }
@@ -78,7 +80,7 @@ export class ListingController {
       SCRAPE_RECORDS_RECYCLE_TOPIC,
       { runId: message.runId },
       message,
-      () => this.recordsRecycle.run(message.runId),
+      () => this.recordsRecycle.run(message.runId, message.dispatchCount),
     );
   }
 }

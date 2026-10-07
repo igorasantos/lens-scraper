@@ -70,6 +70,19 @@ describe('ListingService', () => {
         recycle: true,
       });
     });
+    it('publishes the given dispatchCount', async () => {
+      const service = await buildService();
+      const result = await service.initListing({
+        baseUrl: 'https://example.com/search',
+        dispatchCount: 5,
+      });
+      expect(queue.publishListingInit).toHaveBeenCalledWith({
+        runId: result.runId,
+        baseUrl: 'https://example.com/search',
+        startPage: undefined,
+        dispatchCount: 5,
+      });
+    });
     it('falls back to the configured default baseUrl when none is given', async () => {
       const service = await buildService();
       const result = await service.initListing({});
@@ -92,6 +105,17 @@ describe('ListingService', () => {
       expect(result.runId).toMatch(
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
       );
+    });
+    it('publishes the given dispatchCount', async () => {
+      const service = await buildService();
+      const result = await service.reprocessPendingRecords('run-1', {
+        dispatchCount: 5,
+      });
+      expect(queue.publishPendingReprocess).toHaveBeenCalledWith({
+        runId: result.runId,
+        fromRunId: 'run-1',
+        dispatchCount: 5,
+      });
     });
     it('generates a distinct runId per call', async () => {
       vi.useFakeTimers();

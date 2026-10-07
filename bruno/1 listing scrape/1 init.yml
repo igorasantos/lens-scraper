@@ -15,8 +15,14 @@ http:
       {
       //   "baseUrl": ""
       //   "startPage": 1
-        "recycle": true
+        "recycle": true,
+        "dispatchCount": {{count}}
       }
+
+runtime:
+  variables:
+    - name: count
+      value: "2"
 
 settings:
   encodeUrl: true

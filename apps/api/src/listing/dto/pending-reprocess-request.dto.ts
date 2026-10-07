@@ -1,5 +1,6 @@
 /* v8 ignore file */
-import { IsBoolean, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsOptional, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 export const RUN_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
 export class PendingReprocessRequestDto {
@@ -7,4 +8,13 @@ export class PendingReprocessRequestDto {
   @IsOptional()
   @IsBoolean()
   recycle?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 1
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  dispatchCount?: number;
 }

@@ -11,6 +11,7 @@ export interface ListingDispatchResult extends ScrapeDispatchResult {
 }
 export interface ListingDispatchOptions {
   recycle?: boolean;
+  dispatchCount?: number;
 }
 @Injectable()
 export class ListingDispatchService {
@@ -23,7 +24,7 @@ export class ListingDispatchService {
   async dispatch(
     runId: string,
     recordIds: string[],
-    { recycle = false }: ListingDispatchOptions = {},
+    { recycle = false, dispatchCount }: ListingDispatchOptions = {},
   ): Promise<ListingDispatchResult> {
     const existing = await this.storage.readRecordIds();
     const uniqueRecordIds = [...new Set(recordIds)];
@@ -46,7 +47,7 @@ export class ListingDispatchService {
     }
     if (recycle) {
       await this.storage.writeListingIds(runId, toDispatch);
-      await this.queue.publishRecordsRecycle({ runId });
+      await this.queue.publishRecordsRecycle({ runId, dispatchCount });
       this.logger.log(
         `[${runId}] ${countMessage} = ${toDispatch.length} record(s) handed to recycling before scraping.`,
       );
@@ -55,15 +56,21 @@ export class ListingDispatchService {
     this.logger.log(
       `[${runId}] ${countMessage} = ${toDispatch.length} record(s) left to dispatch.`,
     );
-    const result = await this.dispatchToScrape(runId, toDispatch);
+    const result = await this.dispatchToScrape(
+      runId,
+      toDispatch,
+      dispatchCount,
+    );
     return { ...result, skipped };
   }
   async dispatchToScrape(
     runId: string,
     recordIds: string[],
+    dispatchCount?: number,
   ): Promise<ScrapeDispatchResult> {
-    const toScrape = recordIds.slice(0, this.config.maxRecordExtractions);
-    const deferred = recordIds.slice(this.config.maxRecordExtractions);
+    const limit = dispatchCount ?? this.config.maxRecordExtractions;
+    const toScrape = recordIds.slice(0, limit);
+    const deferred = recordIds.slice(limit);
     let dispatched: string[] = [];
     if (toScrape.length > 0) {
       const scheduled = stampScheduledAt(toScrape);
@@ -73,7 +80,7 @@ export class ListingDispatchService {
       dispatched = scheduled.map((entry) => entry.recordId);
     }
     this.logger.log(
-      `[${runId}] Dispatched ${dispatched.length} record(s), deferred ${deferred.length} record(s) past MAX_RECORD_EXTRACTIONS=${this.config.maxRecordExtractions}.`,
+      `[${runId}] Dispatched ${dispatched.length} record(s), deferred ${deferred.length} record(s) past the dispatch limit of ${limit}${dispatchCount === undefined ? ' (MAX_RECORD_EXTRACTIONS)' : ' (dispatchCount override)'}.`,
     );
     return { dispatched, deferred };
   }

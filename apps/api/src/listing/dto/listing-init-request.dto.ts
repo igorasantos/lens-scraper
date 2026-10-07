@@ -25,4 +25,13 @@ export class ListingInitRequestDto {
   @IsOptional()
   @IsBoolean()
   recycle?: boolean;
+
+  @ApiPropertyOptional({
+    minimum: 1
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  dispatchCount?: number;
 }

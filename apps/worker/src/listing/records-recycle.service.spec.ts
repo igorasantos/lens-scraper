@@ -80,7 +80,7 @@ describe('RecordsRecycleService', () => {
       '1',
       '3',
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3']);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3'], undefined);
     expect(result).toEqual({
       recycled: ['2'],
       toScrape: ['1', '3'],
@@ -127,7 +127,7 @@ describe('RecordsRecycleService', () => {
     expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
       { runId: 'run-1', recordId: '2' },
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3']);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3'], undefined);
     expect(result.recycled).toEqual(['2']);
     expect(result.reclassified).toEqual(['2']);
   });
@@ -163,7 +163,7 @@ describe('RecordsRecycleService', () => {
     expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
       { runId: 'run-1', recordId: '2' },
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3']);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3'], undefined);
     expect(result.recycled).toEqual(['2']);
     expect(result.reclassified).toEqual(['2']);
   });
@@ -181,7 +181,7 @@ describe('RecordsRecycleService', () => {
     expect(storage.writeToScrapeListingIds).toHaveBeenCalledWith('run-1', [
       '3',
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['3']);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['3'], undefined);
     expect(result.recycled).toEqual(['1', '2']);
     expect(result.toScrape).toEqual(['3']);
   });
@@ -190,7 +190,13 @@ describe('RecordsRecycleService', () => {
     const service = await buildService();
     await service.run('run-1');
     expect(storage.writeToScrapeListingIds).toHaveBeenCalledWith('run-1', []);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', []);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', [], undefined);
+  });
+  it('forwards dispatchCount to dispatchToScrape', async () => {
+    storage.readListingIds.mockResolvedValue(['3']);
+    const service = await buildService();
+    await service.run('run-1', 5);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['3'], 5);
   });
   it('propagates a missing listing_ids_new.txt without touching the catalog', async () => {
     storage.readListingIds.mockRejectedValue(new Error('No listing_ids_new.txt'));

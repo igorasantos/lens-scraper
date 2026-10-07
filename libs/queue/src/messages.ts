@@ -4,11 +4,13 @@ export interface ListingInitMessage {
   baseUrl: string;
   startPage?: number;
   recycle?: boolean;
+  dispatchCount?: number;
 }
 export interface PendingReprocessMessage {
   runId: string;
   fromRunId: string;
   recycle?: boolean;
+  dispatchCount?: number;
 }
 export interface ListingPageMessage {
   runId: string;
@@ -18,9 +20,11 @@ export interface ListingPageMessage {
   lockToken: string;
   scheduledAt: string;
   recycle?: boolean;
+  dispatchCount?: number;
 }
 export interface RecordsRecycleMessage {
   runId: string;
+  dispatchCount?: number;
 }
 export interface RecordDetailMessage {
   recordId: string;

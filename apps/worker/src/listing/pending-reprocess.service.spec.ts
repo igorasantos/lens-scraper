@@ -46,4 +46,12 @@ describe('PendingReprocessService', () => {
       recycle: true,
     });
   });
+  it('forwards dispatchCount to dispatch', async () => {
+    const service = await buildService();
+    await service.run('run-2', 'run-1', false, 5);
+    expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1', '2', '2'], {
+      recycle: false,
+      dispatchCount: 5,
+    });
+  });
 });

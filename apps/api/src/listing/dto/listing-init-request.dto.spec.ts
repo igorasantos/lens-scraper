@@ -66,4 +66,24 @@ describe('ListingInitRequestDto', () => {
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toHaveProperty('isBoolean');
   });
+  it('passes validation when dispatchCount is omitted or a positive integer', async () => {
+    expect(
+      await validate(plainToInstance(ListingInitRequestDto, {})),
+    ).toHaveLength(0);
+    expect(
+      await validate(
+        plainToInstance(ListingInitRequestDto, { dispatchCount: 5 }),
+      ),
+    ).toHaveLength(0);
+  });
+  it('fails validation when dispatchCount is 0 or not an integer', async () => {
+    const zero = await validate(
+      plainToInstance(ListingInitRequestDto, { dispatchCount: 0 }),
+    );
+    expect(zero[0].constraints).toHaveProperty('min');
+    const fractional = await validate(
+      plainToInstance(ListingInitRequestDto, { dispatchCount: 1.5 }),
+    );
+    expect(fractional[0].constraints).toHaveProperty('isInt');
+  });
 });

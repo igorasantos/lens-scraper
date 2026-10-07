@@ -121,6 +121,15 @@ describe('ListingDispatchService', () => {
       ),
     ).toEqual(['1', '2']);
   });
+  it('lets dispatchCount override MAX_RECORD_EXTRACTIONS', async () => {
+    config.maxRecordExtractions = 2;
+    const service = await buildService();
+    const result = await service.dispatch('run-1', ['1', '2', '3', '4'], {
+      dispatchCount: 3,
+    });
+    expect(result.dispatched).toEqual(['1', '2', '3']);
+    expect(result.deferred).toEqual(['4']);
+  });
   it('publishes nothing when every new id is already in the scraped expired dir', async () => {
     storage.hasExpiredRecordDetail.mockResolvedValue(true);
     const service = await buildService();
@@ -141,6 +150,17 @@ describe('ListingDispatchService', () => {
     expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
   });
   describe('with recycle', () => {
+    it('forwards dispatchCount on the recycle message', async () => {
+      const service = await buildService();
+      await service.dispatch('run-1', ['1'], {
+        recycle: true,
+        dispatchCount: 5,
+      });
+      expect(queue.publishRecordsRecycle).toHaveBeenCalledWith({
+        runId: 'run-1',
+        dispatchCount: 5,
+      });
+    });
     it('writes listing_ids_new.txt, then hands the run to recycling instead of publishing any detail or classify task', async () => {
       const callOrder: string[] = [];
       storage.readRecordIds.mockResolvedValue(new Set(['2']));

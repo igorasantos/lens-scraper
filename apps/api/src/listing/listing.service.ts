@@ -32,6 +32,7 @@ export class ListingService {
       baseUrl,
       startPage: dto.startPage,
       recycle: dto.recycle,
+      dispatchCount: dto.dispatchCount,
     });
     return { runId, status: 'queued' };
   }
@@ -49,6 +50,7 @@ export class ListingService {
       runId,
       fromRunId,
       recycle: dto.recycle,
+      dispatchCount: dto.dispatchCount,
     });
     return { runId, fromRunId, status: 'queued' };
   }
