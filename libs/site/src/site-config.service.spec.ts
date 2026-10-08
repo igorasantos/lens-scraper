@@ -51,6 +51,7 @@ const validConfig = {
   sanitize: {
     stripAttributes: ['class'],
     stripElements: ['script'],
+    stripSelectors: ['div#first'],
   },
   storage: {
     scrapedRecordsFilenameTemplate: 'scraped_records_{lang}.txt',
@@ -107,6 +108,7 @@ describe('SiteConfigService', () => {
     const service = new SiteConfigService(fakeConfigService(path));
     expect(service.sanitizeStripAttributes).toEqual(['class']);
     expect(service.sanitizeStripElements).toEqual(['script']);
+    expect(service.sanitizeStripSelectors).toEqual(['div#first']);
     expect(service.expiredScrapedRecordsFile).toBe(
       'scraped_records_expired.txt',
     );

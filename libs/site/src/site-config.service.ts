@@ -49,6 +49,7 @@ export interface SiteConfig {
   sanitize: {
     stripAttributes: string[];
     stripElements: string[];
+    stripSelectors: string[];
   };
   storage: {
     scrapedRecordsFilenameTemplate: string;
@@ -114,6 +115,7 @@ const siteConfigSchema = Joi.object<SiteConfig>({
   sanitize: Joi.object({
     stripAttributes: Joi.array().items(Joi.string()).required(),
     stripElements: Joi.array().items(Joi.string()).required(),
+    stripSelectors: Joi.array().items(Joi.string()).required(),
   }).required(),
   storage: Joi.object({
     scrapedRecordsFilenameTemplate: Joi.string().required(),
@@ -188,6 +190,9 @@ export class SiteConfigService {
   }
   get sanitizeStripElements(): string[] {
     return this.config.sanitize.stripElements;
+  }
+  get sanitizeStripSelectors(): string[] {
+    return this.config.sanitize.stripSelectors;
   }
   get scrapedRecordsFilePattern(): RegExp {
     return buildRecordsFilePattern(

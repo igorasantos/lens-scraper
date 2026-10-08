@@ -84,6 +84,7 @@ function fakeSiteConfig({
     loginUrl: 'https://example.com/login',
     sanitizeStripAttributes: ['class'],
     sanitizeStripElements: ['script'],
+    sanitizeStripSelectors: ['div#overlay', '.promo'],
     buildRecordDetailUrl: (recordId: string, mode: SessionMode) =>
       fill(details[mode].urlTemplate, recordId),
     buildRecordDetailSelectors: (recordId: string, mode: SessionMode) => ({
@@ -642,9 +643,33 @@ describe('SiteService', () => {
         );
         expect(result.sourceHtml).toBeNull();
       });
-      it('leaves html untouched when there are no elements to strip (stripElements empty)', async () => {
+      it.each(['logged-in', 'logged-out'] as const)(
+        'removes elements matching the configured strip selectors in %s mode, before stripping attributes',
+        async (mode) => {
+          const page = evaluatingPage(`
+            <section>
+              <div data-testid="header"><h1>Widget Alpha</h1><div id="overlay"><p>Overlay text</p></div></div>
+              <div data-testid="body-123"><p class="promo">Promo text</p><p>Body text</p></div>
+              <div data-testid="source-123"><div id="overlay">Overlay text</div>Source text</div>
+            </section>
+          `);
+          const result = await service.extractRecordDetail(page, '123', mode);
+          expect(result.html).toContain('Widget Alpha');
+          expect(result.html).toContain('Body text');
+          expect(result.html).not.toContain('Overlay text');
+          expect(result.html).not.toContain('Promo text');
+          expect(result.sourceHtml).toContain('Source text');
+          expect(result.sourceHtml).not.toContain('Overlay text');
+        },
+      );
+      it('leaves html untouched when there are no elements to strip (stripElements and stripSelectors empty)', async () => {
         const bareService = new SiteService(
-          fakeSiteConfig({ overrides: { sanitizeStripElements: [] } }),
+          fakeSiteConfig({
+            overrides: {
+              sanitizeStripElements: [],
+              sanitizeStripSelectors: [],
+            },
+          }),
         );
         const page = evaluatingPage(`
           <section>
@@ -698,6 +723,22 @@ describe('SiteService', () => {
         '<!DOCTYPE html>\n<html>\n<body>\n<section data-testid="detail"><h2>Detail</h2><p>Source text</p></section>\n</body>\n</html>\n',
       );
     });
+    it('removes elements matching the configured strip selectors from the source detail', async () => {
+      const page = fakePage({
+        $eval: vi
+          .fn()
+          .mockResolvedValue(
+            '<section data-testid="detail"><div id="overlay">Overlay text</div><p class="promo">Promo text</p><p>Source text</p></section>',
+          ),
+      });
+      const html = await sourceDetailService().extractSourceDetail(
+        page,
+        'logged-out',
+      );
+      expect(html).toContain('<p>Source text</p>');
+      expect(html).not.toContain('Overlay text');
+      expect(html).not.toContain('Promo text');
+    });
     it('runs the real page-context $eval callback to read the element outer html', async () => {
       const page = fakePage({
         $eval: vi.fn(
@@ -735,10 +776,10 @@ describe('SiteService', () => {
           .mockResolvedValue('<section><script>keep()</script>Text</section>'),
       });
       await expect(
-        sourceDetailService({ sanitizeStripElements: [] }).extractSourceDetail(
-          page,
-          'logged-out',
-        ),
+        sourceDetailService({
+          sanitizeStripElements: [],
+          sanitizeStripSelectors: [],
+        }).extractSourceDetail(page, 'logged-out'),
       ).resolves.toContain('<script>keep()</script>');
     });
   });

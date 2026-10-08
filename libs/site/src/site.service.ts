@@ -24,12 +24,12 @@ function wrapAsHtmlDocument(bodyContent: string): string {
 }
 function sanitizeElement(
   root: Element,
-  stripElements: string[],
+  stripSelectors: string[],
   stripAttributes: string[],
 ): void {
-  if (stripElements.length > 0) {
+  if (stripSelectors.length > 0) {
     root
-      .querySelectorAll(stripElements.join(', '))
+      .querySelectorAll(stripSelectors.join(', '))
       .forEach((el) => el.remove());
   }
   for (const attribute of stripAttributes) {
@@ -104,6 +104,12 @@ export class SiteService {
   }
   get recordDetailScrollFocusSelector(): string {
     return this.siteConfig.loggedInDetail.scrollFocusSelector;
+  }
+  private get stripSelectors(): string[] {
+    return [
+      ...this.siteConfig.sanitizeStripElements,
+      ...this.siteConfig.sanitizeStripSelectors,
+    ];
   }
   hasSourceDetailPage(mode: SessionMode): boolean {
     return Boolean(this.siteConfig.detail(mode).sourceDetailSelector);
@@ -188,7 +194,7 @@ export class SiteService {
         sourceLinkSelector,
         expiredMarker,
         stripAttributes,
-        stripElements,
+        stripSelectors,
         partAttribute,
         modeAttribute,
         mode,
@@ -207,9 +213,9 @@ export class SiteService {
           };
         }
         const sanitize = (root: Element): void => {
-          if (stripElements.length > 0) {
+          if (stripSelectors.length > 0) {
             root
-              .querySelectorAll(stripElements.join(', '))
+              .querySelectorAll(stripSelectors.join(', '))
               .forEach((el) => el.remove());
           }
           for (const attribute of stripAttributes) {
@@ -278,7 +284,7 @@ export class SiteService {
         sourceLinkSelector: detail.sourceLinkSelector ?? null,
         expiredMarker: detail.expiredMarker,
         stripAttributes: this.siteConfig.sanitizeStripAttributes,
-        stripElements: this.siteConfig.sanitizeStripElements,
+        stripSelectors: this.stripSelectors,
         partAttribute: RECORD_PART_ATTRIBUTE,
         modeAttribute: RECORD_MODE_ATTRIBUTE,
         mode,
@@ -325,7 +331,7 @@ export class SiteService {
     }
     sanitizeElement(
       element,
-      this.siteConfig.sanitizeStripElements,
+      this.stripSelectors,
       this.siteConfig.sanitizeStripAttributes,
     );
     return wrapAsHtmlDocument(element.outerHTML);

@@ -46,7 +46,8 @@
   },
   "sanitize": {
     "stripAttributes": ["class"],
-    "stripElements": ["script"]
+    "stripElements": ["script"],
+    "stripSelectors": []
   },
   "storage": {
     "scrapedRecordsFilenameTemplate": "scraped_records_{lang}.txt",
