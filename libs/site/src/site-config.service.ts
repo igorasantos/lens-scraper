@@ -20,7 +20,6 @@ export interface LoggedInListingConfig extends ListingSelectorsConfig {
   pageSize: number;
 }
 export interface DetailConfig {
-  scrollFocusSelector: string;
   urlTemplate: string;
   sectionSelector: string;
   headerSelector: string;
@@ -33,10 +32,13 @@ export interface DetailConfig {
   sourceDetailTimeoutMs: number;
   expiredMarker: string;
 }
+export interface LoggedInDetailConfig extends DetailConfig {
+  scrollFocusSelector: string;
+}
 export interface SiteConfig {
   listing_logged_in: LoggedInListingConfig;
   listing_logged_out: ListingSelectorsConfig;
-  detail_logged_in: DetailConfig;
+  detail_logged_in: LoggedInDetailConfig;
   detail_logged_out: DetailConfig;
   source: {
     urlPrefix: string;
@@ -80,7 +82,6 @@ const listingSelectorsSchema = {
   cardIdPrefix: Joi.string().required(),
 };
 const detailSchema = Joi.object({
-  scrollFocusSelector: Joi.string().required(),
   urlTemplate: Joi.string().required(),
   sectionSelector: Joi.string().required(),
   headerSelector: Joi.string().required(),
@@ -100,7 +101,9 @@ const siteConfigSchema = Joi.object<SiteConfig>({
     pageSize: Joi.number().integer().positive().required(),
   }).required(),
   listing_logged_out: Joi.object(listingSelectorsSchema).required(),
-  detail_logged_in: detailSchema,
+  detail_logged_in: detailSchema.keys({
+    scrollFocusSelector: Joi.string().required(),
+  }),
   detail_logged_out: detailSchema,
   source: Joi.object({
     urlPrefix: Joi.string().required(),
@@ -165,6 +168,9 @@ export class SiteConfigService {
     return mode === 'logged-in'
       ? this.config.listing_logged_in
       : this.config.listing_logged_out;
+  }
+  get loggedInDetail(): LoggedInDetailConfig {
+    return this.config.detail_logged_in;
   }
   detail(mode: SessionMode): DetailConfig {
     return mode === 'logged-in'

@@ -102,8 +102,8 @@ export class SiteService {
   get listingScrollFocusSelector(): string {
     return this.siteConfig.loggedInListing.scrollFocusSelector;
   }
-  recordDetailScrollFocusSelector(mode: SessionMode): string {
-    return this.siteConfig.detail(mode).scrollFocusSelector;
+  get recordDetailScrollFocusSelector(): string {
+    return this.siteConfig.loggedInDetail.scrollFocusSelector;
   }
   hasSourceDetailPage(mode: SessionMode): boolean {
     return Boolean(this.siteConfig.detail(mode).sourceDetailSelector);

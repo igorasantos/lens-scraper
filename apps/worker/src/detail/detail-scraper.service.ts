@@ -81,10 +81,12 @@ export class DetailScraperService {
           await this.persistRedirected(runId, recordId, redirectedTo);
           return;
         }
-        await this.browser.scrollRandomly(
-          page,
-          this.site.recordDetailScrollFocusSelector(detailMode),
-        );
+        if (detailMode === 'logged-in') {
+          await this.browser.scrollRandomly(
+            page,
+            this.site.recordDetailScrollFocusSelector,
+          );
+        }
         let attempts = 0;
         let last: RecordDetailExtractionResult = {
           sectionFound: false,

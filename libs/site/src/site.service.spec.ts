@@ -2,7 +2,11 @@ import { Logger } from '@nestjs/common';
 import { parseHTML } from 'linkedom';
 import type { Page } from 'playwright';
 import { SiteService } from './site.service.js';
-import type { DetailConfig, SiteConfigService } from './site-config.service.js';
+import type {
+  DetailConfig,
+  LoggedInDetailConfig,
+  SiteConfigService,
+} from './site-config.service.js';
 import type { SessionMode } from './session-mode.js';
 function withFakeDocument<T>(html: string, run: () => T): T {
   const { document } = parseHTML(html);
@@ -22,7 +26,6 @@ function evaluatingPage(html: string): Page {
   });
 }
 const baseDetail: DetailConfig = {
-  scrollFocusSelector: 'body',
   urlTemplate: 'https://example.com/{id}',
   sectionSelector: 'section',
   headerSelector: 'div[data-testid="header"]',
@@ -39,17 +42,18 @@ function fakeSiteConfig({
   overrides = {},
 }: {
   detail?: Partial<DetailConfig>;
-  loggedInDetail?: Partial<DetailConfig>;
+  loggedInDetail?: Partial<LoggedInDetailConfig>;
   overrides?: Partial<Record<keyof SiteConfigService, unknown>>;
 } = {}): SiteConfigService {
+  const loggedInDetailConfig: LoggedInDetailConfig = {
+    ...baseDetail,
+    scrollFocusSelector: '#app',
+    urlTemplate: 'https://example.com/item/{id}',
+    titleSelector: 'p',
+    ...loggedInDetail,
+  };
   const details: Record<SessionMode, DetailConfig> = {
-    'logged-in': {
-      ...baseDetail,
-      scrollFocusSelector: '#app',
-      urlTemplate: 'https://example.com/item/{id}',
-      titleSelector: 'p',
-      ...loggedInDetail,
-    },
+    'logged-in': loggedInDetailConfig,
     'logged-out': { ...baseDetail, ...detail },
   };
   const loggedInListing = {
@@ -72,6 +76,7 @@ function fakeSiteConfig({
     template.replace('{id}', recordId);
   return {
     loggedInListing,
+    loggedInDetail: loggedInDetailConfig,
     listingSelectors: (mode: SessionMode) =>
       mode === 'logged-in' ? loggedInListing : loggedOutListing,
     detail: (mode: SessionMode) => details[mode],
@@ -110,11 +115,10 @@ describe('SiteService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
-  it('exposes the logged-in listing paging and scroll focus selector, and the detail scroll focus selector of each mode', () => {
+  it('exposes the logged-in listing paging and scroll focus selector, and the logged-in detail scroll focus selector', () => {
     expect(service.listingPageSize).toBe(25);
     expect(service.listingScrollFocusSelector).toBe('#app');
-    expect(service.recordDetailScrollFocusSelector('logged-in')).toBe('#app');
-    expect(service.recordDetailScrollFocusSelector('logged-out')).toBe('body');
+    expect(service.recordDetailScrollFocusSelector).toBe('#app');
   });
   it('reports a source detail page only for the mode whose detail block configures a source detail selector', () => {
     expect(service.hasSourceDetailPage('logged-out')).toBe(false);

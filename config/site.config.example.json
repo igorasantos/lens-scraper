@@ -27,7 +27,6 @@
     "expiredMarker": "not available"
   },
   "detail_logged_out": {
-    "scrollFocusSelector": "body",
     "urlTemplate": "https://example.com/{id}",
     "sectionSelector": "section",
     "headerSelector": "header",

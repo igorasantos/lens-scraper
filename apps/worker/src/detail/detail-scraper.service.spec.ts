@@ -36,7 +36,7 @@ describe('DetailScraperService', () => {
     close: ReturnType<typeof vi.fn>;
   };
   let site: {
-    recordDetailScrollFocusSelector: ReturnType<typeof vi.fn>;
+    recordDetailScrollFocusSelector: string;
     hasSourceDetailPage: ReturnType<typeof vi.fn>;
     buildRecordDetailUrl: ReturnType<typeof vi.fn>;
     isRecordDetailUrl: ReturnType<typeof vi.fn>;
@@ -112,7 +112,7 @@ describe('DetailScraperService', () => {
       close: vi.fn().mockResolvedValue(undefined),
     };
     site = {
-      recordDetailScrollFocusSelector: vi.fn().mockReturnValue('#app'),
+      recordDetailScrollFocusSelector: '#app',
       hasSourceDetailPage: vi.fn().mockReturnValue(false),
       buildRecordDetailUrl: vi.fn(
         (recordId: string) => `https://www.site.com/${recordId}`,
@@ -170,10 +170,7 @@ describe('DetailScraperService', () => {
     expect(lock.acquire).toHaveBeenCalledWith(SESSION_LOCK_KEY, 90000);
     expect(browser.newPage).toHaveBeenCalledWith({ kind: 'ephemeral' });
     expect(site.buildRecordDetailUrl).toHaveBeenCalledWith('123', 'logged-out');
-    expect(site.recordDetailScrollFocusSelector).toHaveBeenCalledWith(
-      'logged-out',
-    );
-    expect(browser.scrollRandomly).toHaveBeenCalledWith(page, '#app');
+    expect(browser.scrollRandomly).not.toHaveBeenCalled();
     expect(page.goto).toHaveBeenCalledWith('https://www.site.com/123');
     expect(site.extractRecordDetail).toHaveBeenCalledTimes(1);
     expect(site.extractRecordDetail).toHaveBeenCalledWith(
@@ -567,7 +564,7 @@ describe('DetailScraperService', () => {
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
-    expect(browser.scrollRandomly).toHaveBeenCalledTimes(1);
+    expect(browser.scrollRandomly).not.toHaveBeenCalled();
     expect(site.extractRecordDetail).toHaveBeenCalledTimes(1);
     expect(storage.writeRecordDetail).not.toHaveBeenCalled();
     expect(storage.appendFailure).toHaveBeenCalledWith('run-1', {
@@ -805,9 +802,7 @@ describe('DetailScraperService', () => {
     expect(browser.newPage).toHaveBeenCalledTimes(1);
     expect(browser.newPage).toHaveBeenCalledWith({ kind: 'persistent' });
     expect(site.buildRecordDetailUrl).toHaveBeenCalledWith('123', 'logged-in');
-    expect(site.recordDetailScrollFocusSelector).toHaveBeenCalledWith(
-      'logged-in',
-    );
+    expect(browser.scrollRandomly).toHaveBeenCalledWith(page, '#app');
     expect(site.extractRecordDetail).toHaveBeenCalledWith(
       page,
       '123',

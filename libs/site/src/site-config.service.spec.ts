@@ -33,7 +33,6 @@ const validConfig = {
     expiredMarker: 'not available',
   },
   detail_logged_out: {
-    scrollFocusSelector: 'body',
     urlTemplate: 'https://example.com/{id}',
     sectionSelector: 'section',
     headerSelector: 'div[data-testid="header"]',
@@ -151,6 +150,11 @@ describe('SiteConfigService', () => {
     });
     expect(service.detail('logged-out')).toEqual(validConfig.detail_logged_out);
   });
+  it('exposes the logged-in detail block, scroll focus selector included', async () => {
+    const path = await writeConfig(validConfig);
+    const service = new SiteConfigService(fakeConfigService(path));
+    expect(service.loggedInDetail.scrollFocusSelector).toBe('#app');
+  });
   it('fills the {topic} placeholder in both dead-letter filename templates', async () => {
     const path = await writeConfig(validConfig);
     const service = new SiteConfigService(fakeConfigService(path));
@@ -249,6 +253,29 @@ describe('SiteConfigService', () => {
     });
     expect(() => new SiteConfigService(fakeConfigService(path))).toThrow(
       /"listing_logged_out.pageSize" is not allowed/,
+    );
+  });
+  it('rejects a scroll focus selector in the logged-out detail block', async () => {
+    const path = await writeConfig({
+      ...validConfig,
+      detail_logged_out: {
+        ...validConfig.detail_logged_out,
+        scrollFocusSelector: 'body',
+      },
+    });
+    expect(() => new SiteConfigService(fakeConfigService(path))).toThrow(
+      /"detail_logged_out.scrollFocusSelector" is not allowed/,
+    );
+  });
+  it('requires a scroll focus selector in the logged-in detail block', async () => {
+    const { scrollFocusSelector: _selector, ...detail } =
+      validConfig.detail_logged_in;
+    const path = await writeConfig({
+      ...validConfig,
+      detail_logged_in: detail,
+    });
+    expect(() => new SiteConfigService(fakeConfigService(path))).toThrow(
+      /"detail_logged_in.scrollFocusSelector" is required/,
     );
   });
   it('rejects the old single listing and detail blocks', async () => {
