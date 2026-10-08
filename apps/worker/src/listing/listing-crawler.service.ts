@@ -104,13 +104,18 @@ export class ListingCrawlerService {
       dispatchCount,
     } = state;
     const start = pagesVisited * this.site.listingPageSize;
-    const page = await this.browser.newPage();
+    const page = await this.browser.newPage({
+      kind: this.site.listingBrowserContext,
+    });
     let pageRecordIds: string[];
     try {
       const url = this.site.buildListingPageUrl(baseUrl, start);
       this.logger.log(`[${runId}] Fetching listing page (start=${start})`);
       await this.browser.goto(page, url);
-      await this.browser.scrollRandomly(page, this.site.scrollFocusSelector);
+      await this.browser.scrollRandomly(
+        page,
+        this.site.listingScrollFocusSelector,
+      );
       pageRecordIds = await this.site.extractRecordIds(page);
     } finally {
       await this.browser.closePage(page);

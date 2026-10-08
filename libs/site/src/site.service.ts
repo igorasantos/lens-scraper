@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Node as LinkedomNode, parseHTML } from 'linkedom';
 import type { Page } from 'playwright';
+import type { BrowserContextKind } from '@app/browser';
 import {
   SiteConfigService,
   type RecordDetailSelectors,
@@ -12,11 +13,30 @@ export interface RecordDetailExtractionResult {
   html: string | null;
   bodyContentText: string | null;
   sourceName: string | null;
+  sourceUrl: string | null;
   sourceHtml: string | null;
   isExpired: boolean;
 }
+export const RECORD_PART_ATTRIBUTE = 'data-lens-part';
 function wrapAsHtmlDocument(bodyContent: string): string {
   return `<!DOCTYPE html>\n<html>\n<body>\n${bodyContent}\n</body>\n</html>\n`;
+}
+function sanitizeElement(
+  root: Element,
+  stripElements: string[],
+  stripAttributes: string[],
+): void {
+  if (stripElements.length > 0) {
+    root
+      .querySelectorAll(stripElements.join(', '))
+      .forEach((el) => el.remove());
+  }
+  for (const attribute of stripAttributes) {
+    root.removeAttribute(attribute);
+    root
+      .querySelectorAll(`[${attribute}]`)
+      .forEach((el) => el.removeAttribute(attribute));
+  }
 }
 const BLOCK_ELEMENT_TAGS = new Set([
   'ARTICLE',
@@ -78,15 +98,37 @@ export class SiteService {
   get listingPageSize(): number {
     return this.siteConfig.listingPageSize;
   }
-  get scrollFocusSelector(): string {
-    return this.siteConfig.scrollFocusSelector;
+  get listingBrowserContext(): BrowserContextKind {
+    return this.siteConfig.listingBrowserContext;
+  }
+  get listingScrollFocusSelector(): string {
+    return this.siteConfig.listingScrollFocusSelector;
+  }
+  get recordDetailBrowserContext(): BrowserContextKind {
+    return this.siteConfig.recordDetailBrowserContext;
+  }
+  get recordDetailScrollFocusSelector(): string {
+    return this.siteConfig.recordDetailScrollFocusSelector;
+  }
+  get hasSourceDetailPage(): boolean {
+    return Boolean(this.siteConfig.sourceDetailSelector);
   }
   parseSourceNameFromHref(href: string | null | undefined): string | null {
-    const prefix = this.siteConfig.sourceUrlPrefix;
-    if (!href || !href.startsWith(prefix)) {
+    if (!href) {
       return null;
     }
-    const name = href.slice(prefix.length).split('/')[0];
+    let url: URL;
+    try {
+      url = new URL(href);
+    } catch {
+      return null;
+    }
+    const prefix = this.siteConfig.sourceUrlPrefix;
+    const withoutQuery = `${url.origin}${url.pathname}`;
+    if (!withoutQuery.startsWith(prefix)) {
+      return null;
+    }
+    const name = withoutQuery.slice(prefix.length).split('/')[0];
     return name || null;
   }
   buildListingPageUrl(baseUrl: string, start: number): string {
@@ -142,11 +184,13 @@ export class SiteService {
     const raw = await page.evaluate(
       ({
         selectors,
-        headerContainerSelector,
+        headerSelector,
         sectionSelector,
         expiredMarker,
         stripAttributes,
         stripElements,
+        partAttribute,
+        captureInlineSource,
       }) => {
         const section = document.querySelector(sectionSelector);
         if (!section || !section.innerHTML.trim()) {
@@ -155,7 +199,7 @@ export class SiteService {
             hasBodyContent: false,
             html: null,
             bodyContentText: null,
-            sourceHref: null,
+            sourceUrl: null,
             sourceHtml: null,
             isExpired: false,
           };
@@ -173,30 +217,40 @@ export class SiteService {
               .forEach((el) => el.removeAttribute(attribute));
           }
         };
-        const cloneSanitized = (el: Element): string => {
+        const cloneSanitized = (el: Element, part?: string): string => {
           const clone = el.cloneNode(true) as Element;
           sanitize(clone);
+          if (part) {
+            clone.setAttribute(partAttribute, part);
+          }
           return clone.outerHTML;
         };
-        const headerContainer = section.querySelector(headerContainerSelector);
-        const header = headerContainer?.children[1] ?? null;
+        const header = section.querySelector(headerSelector);
         const recordFeature = section.querySelector(selectors.recordFeature);
         const bodyContent = section.querySelector(selectors.bodyContent);
         const sourceContent = section.querySelector(selectors.sourceContent);
         const hasBodyContent = Boolean(bodyContent?.textContent?.trim());
         const bodyContentText =
           (bodyContent as HTMLElement | null)?.innerText ?? null;
-        const sourceHref =
-          header?.querySelector('a')?.getAttribute('href') ?? null;
-        const parts = [header, recordFeature, bodyContent].filter(
-          (el): el is Element => el !== null,
-        );
-        const html = parts.map(cloneSanitized).join('');
+        const sourceAnchor = sourceContent?.matches('a')
+          ? sourceContent
+          : (sourceContent?.querySelector('a') ?? null);
+        const sourceUrl =
+          (sourceAnchor as HTMLAnchorElement | null)?.href ?? null;
+        const parts: [Element | null, string][] = [
+          [header, 'header'],
+          [recordFeature, 'feature'],
+          [bodyContent, 'body'],
+        ];
+        const html = parts
+          .filter((entry): entry is [Element, string] => entry[0] !== null)
+          .map(([el, part]) => cloneSanitized(el, part))
+          .join('');
         const sourceContentText = (
           sourceContent as HTMLElement | null
         )?.innerText?.trim();
         const sourceHtml =
-          sourceContent && sourceContentText
+          captureInlineSource && sourceContent && sourceContentText
             ? cloneSanitized(sourceContent)
             : null;
         const headerText = (header as HTMLElement | null)?.innerText ?? '';
@@ -206,31 +260,62 @@ export class SiteService {
           hasBodyContent,
           html,
           bodyContentText,
-          sourceHref,
+          sourceUrl,
           sourceHtml,
           isExpired,
         };
       },
       {
         selectors,
-        headerContainerSelector:
-          this.siteConfig.recordDetailHeaderContainerSelector,
+        headerSelector: this.siteConfig.recordDetailHeaderSelector,
         sectionSelector: this.siteConfig.recordDetailSectionSelector,
         expiredMarker: this.siteConfig.expiredRecordMarker,
         stripAttributes: this.siteConfig.sanitizeStripAttributes,
         stripElements: this.siteConfig.sanitizeStripElements,
+        partAttribute: RECORD_PART_ATTRIBUTE,
+        captureInlineSource: !this.hasSourceDetailPage,
       },
     );
+    const sourceName = this.parseSourceNameFromHref(raw.sourceUrl);
     return {
       sectionFound: raw.sectionFound,
       hasBodyContent: raw.hasBodyContent,
       html: raw.html !== null ? wrapAsHtmlDocument(raw.html) : null,
       bodyContentText: raw.bodyContentText,
-      sourceName: this.parseSourceNameFromHref(raw.sourceHref),
+      sourceName,
+      sourceUrl: sourceName ? raw.sourceUrl : null,
       isExpired: raw.isExpired,
       sourceHtml:
         raw.sourceHtml !== null ? wrapAsHtmlDocument(raw.sourceHtml) : null,
     };
+  }
+  async extractSourceDetail(page: Page): Promise<string | null> {
+    const selector = this.siteConfig.sourceDetailSelector;
+    if (!selector) {
+      return null;
+    }
+    try {
+      await page.waitForSelector(selector, {
+        timeout: this.siteConfig.sourceDetailTimeoutMs,
+      });
+    } catch {
+      this.logger.debug(
+        'Source detail element did not appear in time; treating it as missing.',
+      );
+      return null;
+    }
+    const rawHtml = await page.$eval(selector, (el) => el.outerHTML);
+    const { document } = parseHTML(wrapAsHtmlDocument(rawHtml));
+    const element = document.body.firstElementChild;
+    if (!element || !innerTextOf(element).trim()) {
+      return null;
+    }
+    sanitizeElement(
+      element,
+      this.siteConfig.sanitizeStripElements,
+      this.siteConfig.sanitizeStripAttributes,
+    );
+    return wrapAsHtmlDocument(element.outerHTML);
   }
   extractBodyContentTextFromHtml(
     html: string,
@@ -238,20 +323,24 @@ export class SiteService {
   ): string | null {
     const { document } = parseHTML(html);
     const selector = this.buildRecordDetailSelectors(recordId).bodyContent;
-    const element = document.querySelector(selector);
+    const element =
+      document.querySelector(`[${RECORD_PART_ATTRIBUTE}="body"]`) ??
+      document.querySelector(selector);
     return element ? innerTextOf(element) : null;
   }
   extractRecordTitleFromHtml(html: string): string | null {
     const { document } = parseHTML(html);
-    const header = document.body.querySelector(':scope > div');
+    const header = document.querySelector(`[${RECORD_PART_ATTRIBUTE}]`)
+      ? document.querySelector(`[${RECORD_PART_ATTRIBUTE}="header"]`)
+      : document.body.querySelector(':scope > div');
     if (!header) {
       return null;
     }
     header.querySelectorAll('a').forEach((anchor) => anchor.remove());
-    const firstParagraph = Array.from(header.querySelectorAll('p')).find(
-      (p) => innerTextOf(p).trim().length > 0,
-    );
-    const title = (firstParagraph ? innerTextOf(firstParagraph) : '')
+    const titleElement = Array.from(
+      header.querySelectorAll(this.siteConfig.recordTitleSelector),
+    ).find((el) => innerTextOf(el).trim().length > 0);
+    const title = (titleElement ? innerTextOf(titleElement) : '')
       .trim()
       .toLowerCase();
     return title || null;

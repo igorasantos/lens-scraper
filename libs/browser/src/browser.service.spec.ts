@@ -3,16 +3,19 @@ import { chromium, type Page } from 'playwright';
 import { ConfigService } from '@app/config';
 import { BrowserService } from './browser.service.js';
 vi.mock('playwright', () => ({
-  chromium: { launchPersistentContext: vi.fn() },
+  chromium: { launchPersistentContext: vi.fn(), launch: vi.fn() },
 }));
 describe('BrowserService', () => {
   let service: BrowserService;
   let launchPersistentContext: ReturnType<typeof vi.fn>;
+  let launch: ReturnType<typeof vi.fn>;
   beforeEach(async () => {
     launchPersistentContext = chromium.launchPersistentContext as ReturnType<
       typeof vi.fn
     >;
     launchPersistentContext.mockReset();
+    launch = chromium.launch as ReturnType<typeof vi.fn>;
+    launch.mockReset();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         BrowserService,
@@ -82,6 +85,56 @@ describe('BrowserService', () => {
       expect(await second).toBe(context);
       expect(launchPersistentContext).toHaveBeenCalledTimes(1);
     });
+    it('launches an ephemeral context on a fresh browser, with no profile dir, when kind is ephemeral', async () => {
+      const context = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
+      const browser = {
+        newContext: vi.fn().mockResolvedValue(context),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      launch.mockResolvedValue(browser);
+      const result = await service.getContext({ kind: 'ephemeral' });
+      expect(launch).toHaveBeenCalledWith({ headless: true });
+      expect(browser.newContext).toHaveBeenCalledTimes(1);
+      expect(launchPersistentContext).not.toHaveBeenCalled();
+      expect(result).toBe(context);
+    });
+    it('closes the ephemeral browser once its context closes', async () => {
+      const context = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
+      const browser = {
+        newContext: vi.fn().mockResolvedValue(context),
+        close: vi.fn().mockResolvedValue(undefined),
+      };
+      launch.mockResolvedValue(browser);
+      await service.getContext({ kind: 'ephemeral' });
+      const [event, onClose] = context.on.mock.calls[0] as [string, () => void];
+      expect(event).toBe('close');
+      onClose();
+      expect(browser.close).toHaveBeenCalledTimes(1);
+    });
+    it('keeps the persistent and ephemeral contexts apart, reusing each one per kind', async () => {
+      const persistent = { newPage: vi.fn(), close: vi.fn() };
+      const ephemeral = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
+      launchPersistentContext.mockResolvedValue(persistent);
+      launch.mockResolvedValue({
+        newContext: vi.fn().mockResolvedValue(ephemeral),
+        close: vi.fn(),
+      });
+      expect(await service.getContext({ kind: 'persistent' })).toBe(persistent);
+      expect(await service.getContext({ kind: 'ephemeral' })).toBe(ephemeral);
+      expect(await service.getContext()).toBe(persistent);
+      expect(await service.getContext({ kind: 'ephemeral' })).toBe(ephemeral);
+      expect(launchPersistentContext).toHaveBeenCalledTimes(1);
+      expect(launch).toHaveBeenCalledTimes(1);
+    });
+    it('forgets a failed launch so the next call tries again', async () => {
+      const context = { newPage: vi.fn(), close: vi.fn() };
+      launchPersistentContext
+        .mockRejectedValueOnce(new Error('launch failed'))
+        .mockResolvedValueOnce(context);
+      await expect(service.getContext()).rejects.toThrow('launch failed');
+      await expect(service.getContext()).resolves.toBe(context);
+      expect(launchPersistentContext).toHaveBeenCalledTimes(2);
+    });
   });
   describe('newPage', () => {
     it('opens a new page on the launched context', async () => {
@@ -102,7 +155,18 @@ describe('BrowserService', () => {
         goto: vi.fn().mockResolvedValue(undefined),
       } as unknown as Page;
       await service.goto(page, 'https://www.site.com/search');
-      expect(page.goto).toHaveBeenCalledWith('https://www.site.com/search');
+      expect(page.goto).toHaveBeenCalledWith('https://www.site.com/search', {});
+    });
+    it('forwards the referer to the page navigation', async () => {
+      const page = {
+        goto: vi.fn().mockResolvedValue(undefined),
+      } as unknown as Page;
+      await service.goto(page, 'https://www.site.com/source/a', {
+        referer: 'https://www.site.com/123',
+      });
+      expect(page.goto).toHaveBeenCalledWith('https://www.site.com/source/a', {
+        referer: 'https://www.site.com/123',
+      });
     });
     it('rejects an unsafe URL without navigating the page', async () => {
       const page = {
@@ -126,6 +190,33 @@ describe('BrowserService', () => {
       const result = await service.getContext();
       expect(result).toBe(secondContext);
       expect(launchPersistentContext).toHaveBeenCalledTimes(2);
+    });
+    it('closes both the persistent and the ephemeral contexts', async () => {
+      const persistent = { newPage: vi.fn(), close: vi.fn() };
+      const ephemeral = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
+      launchPersistentContext.mockResolvedValue(persistent);
+      launch.mockResolvedValue({
+        newContext: vi.fn().mockResolvedValue(ephemeral),
+        close: vi.fn(),
+      });
+      await service.getContext();
+      await service.getContext({ kind: 'ephemeral' });
+      await service.closeContext();
+      expect(persistent.close).toHaveBeenCalledTimes(1);
+      expect(ephemeral.close).toHaveBeenCalledTimes(1);
+    });
+    it('skips a context whose launch failed when closing', async () => {
+      let rejectLaunch: (error: Error) => void;
+      launchPersistentContext.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectLaunch = reject;
+        }),
+      );
+      const pending = service.getContext();
+      const closing = service.closeContext();
+      rejectLaunch!(new Error('launch failed'));
+      await expect(pending).rejects.toThrow('launch failed');
+      await expect(closing).resolves.toBeUndefined();
     });
     it('onModuleDestroy closes the context the same way closeContext does', async () => {
       const context = { newPage: vi.fn(), close: vi.fn() };

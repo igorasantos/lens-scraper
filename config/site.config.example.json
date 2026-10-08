@@ -1,6 +1,7 @@
 {
-  "scrollFocusSelector": "#app",
   "listing": {
+    "browserContext": "persistent",
+    "scrollFocusSelector": "#app",
     "pageSize": 25,
     "containerSelector": "container",
     "containerTimeoutMs": 10000,
@@ -9,12 +10,15 @@
     "cardIdPrefix": "card-"
   },
   "detail": {
+    "browserContext": "persistent",
+    "scrollFocusSelector": "#app",
     "urlTemplate": "https://example.com/{id}",
     "sectionSelector": "section",
-    "headerContainerSelector": "header",
+    "headerSelector": "header",
+    "titleSelector": "h1",
     "featureSelector": "feature",
-    "bodySelectorTemplate": "body_{id}",
-    "sourceSelectorTemplate": "source_{id}\"]",
+    "bodySelectorTemplate": "body",
+    "sourceSelectorTemplate": "source",
     "expiredMarker": "not available"
   },
   "source": {

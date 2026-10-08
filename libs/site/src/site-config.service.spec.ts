@@ -4,8 +4,9 @@ import { join } from 'node:path';
 import { SiteConfigService, loadSiteConfig } from './site-config.service.js';
 import type { ConfigService } from '@app/config';
 const validConfig = {
-  scrollFocusSelector: '#app',
   listing: {
+    browserContext: 'persistent',
+    scrollFocusSelector: '#app',
     pageSize: 25,
     containerSelector: '[data-testid="results-container"]',
     containerTimeoutMs: 10000,
@@ -14,15 +15,22 @@ const validConfig = {
     cardIdPrefix: 'record-card-',
   },
   detail: {
+    browserContext: 'ephemeral',
+    scrollFocusSelector: 'body',
     urlTemplate: 'https://example.com/{id}',
     sectionSelector: 'section',
-    headerContainerSelector: 'div[data-testid="header"]',
+    headerSelector: 'div[data-testid="header"]',
+    titleSelector: 'h1',
     featureSelector: 'div[data-testid="feature-{id}"]',
     bodySelectorTemplate: 'div[data-testid="body-{id}"]',
     sourceSelectorTemplate: 'div[data-testid="source-{id}"]',
     expiredMarker: 'not available',
   },
-  source: { urlPrefix: 'https://example.com/source/' },
+  source: {
+    urlPrefix: 'https://example.com/source/',
+    detailSelector: 'section[data-testid="detail"]',
+    detailTimeoutMs: 5000,
+  },
   auth: { loginUrl: 'https://example.com/login' },
   sanitize: {
     stripAttributes: ['class'],
@@ -81,13 +89,19 @@ describe('SiteConfigService', () => {
   it('exposes every configured selector and storage filename getter', async () => {
     const path = await writeConfig(validConfig);
     const service = new SiteConfigService(fakeConfigService(path));
-    expect(service.scrollFocusSelector).toBe('#app');
+    expect(service.listingBrowserContext).toBe('persistent');
+    expect(service.listingScrollFocusSelector).toBe('#app');
+    expect(service.recordDetailBrowserContext).toBe('ephemeral');
+    expect(service.recordDetailScrollFocusSelector).toBe('body');
+    expect(service.recordTitleSelector).toBe('h1');
+    expect(service.sourceDetailSelector).toBe('section[data-testid="detail"]');
+    expect(service.sourceDetailTimeoutMs).toBe(5000);
     expect(service.listingContainerTimeoutMs).toBe(10000);
     expect(service.recordCardSelector).toBe('div[data-testid^="record-card-"]');
     expect(service.recordCardIdAttribute).toBe('data-testid');
     expect(service.recordCardIdPrefix).toBe('record-card-');
     expect(service.recordDetailSectionSelector).toBe('section');
-    expect(service.recordDetailHeaderContainerSelector).toBe(
+    expect(service.recordDetailHeaderSelector).toBe(
       'div[data-testid="header"]',
     );
     expect(service.expiredRecordMarker).toBe('not available');
@@ -174,6 +188,44 @@ describe('SiteConfigService', () => {
     const path = await writeConfig(withoutAuth);
     const service = new SiteConfigService(fakeConfigService(path));
     expect(service.loginUrl).toBeUndefined();
+  });
+  it('defaults both browser contexts to persistent, and the source detail page to absent with a 10s timeout', async () => {
+    const { browserContext: _listingContext, ...listing } = validConfig.listing;
+    const { browserContext: _detailContext, ...detail } = validConfig.detail;
+    const path = await writeConfig({
+      ...validConfig,
+      listing,
+      detail,
+      source: { urlPrefix: 'https://example.com/source/' },
+    });
+    const service = new SiteConfigService(fakeConfigService(path));
+    expect(service.listingBrowserContext).toBe('persistent');
+    expect(service.recordDetailBrowserContext).toBe('persistent');
+    expect(service.sourceDetailSelector).toBeUndefined();
+    expect(service.sourceDetailTimeoutMs).toBe(10000);
+  });
+  it('throws when a browser context is neither persistent nor ephemeral', async () => {
+    const path = await writeConfig({
+      ...validConfig,
+      detail: { ...validConfig.detail, browserContext: 'incognito' },
+    });
+    expect(() => new SiteConfigService(fakeConfigService(path))).toThrow(
+      /browserContext/,
+    );
+  });
+  it('ignores top-level keys prefixed with an underscore', async () => {
+    const path = await writeConfig({
+      ...validConfig,
+      _detail_backup: { anything: 'goes' },
+    });
+    const service = new SiteConfigService(fakeConfigService(path));
+    expect(service.recordDetailSectionSelector).toBe('section');
+  });
+  it('throws on an unknown top-level key without the underscore prefix', async () => {
+    const path = await writeConfig({ ...validConfig, detail_backup: {} });
+    expect(() => new SiteConfigService(fakeConfigService(path))).toThrow(
+      /"detail_backup" is not allowed/,
+    );
   });
   it('throws when the config file is missing a required field', async () => {
     const { listing: _listing, ...withoutListing } = validConfig;

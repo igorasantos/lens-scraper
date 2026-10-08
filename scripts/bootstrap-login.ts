@@ -25,7 +25,10 @@ async function main(): Promise<void> {
       );
     }
     const browserService = new BrowserService(configService);
-    const page = await browserService.newPage({ headless: false });
+    const page = await browserService.newPage({
+      kind: 'persistent',
+      headless: false,
+    });
     await page.goto(loginUrl);
     const rl = readline.createInterface({
       input: process.stdin,

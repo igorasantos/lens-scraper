@@ -75,7 +75,8 @@ describe('ListingCrawlerService', () => {
     };
     site = {
       listingPageSize: 25,
-      scrollFocusSelector: '#app',
+      listingBrowserContext: 'persistent',
+      listingScrollFocusSelector: '#app',
       buildListingPageUrl: vi.fn(
         (url: string, start: number) => `${url}&start=${start}`,
       ),
@@ -107,6 +108,8 @@ describe('ListingCrawlerService', () => {
       await service.start('run-1', baseUrl);
       expect(lock.acquire).toHaveBeenCalledWith(SESSION_LOCK_KEY, 90000);
       expect(site.buildListingPageUrl).toHaveBeenCalledWith(baseUrl, 0);
+      expect(browser.newPage).toHaveBeenCalledWith({ kind: 'persistent' });
+      expect(browser.scrollRandomly).toHaveBeenCalledWith(page, '#app');
       expect(page.goto).toHaveBeenCalledTimes(1);
       expect(page.close).toHaveBeenCalledTimes(1);
       expect(storage.appendRawListingIds).toHaveBeenCalledWith('run-1', [

@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { Frame } from 'playwright';
+import type { Frame, Page } from 'playwright';
 import { BrowserService } from '@app/browser';
 import {
   guessLanguageAlpha2,
@@ -55,7 +55,9 @@ export class DetailScraperService {
     lockToken: string,
   ): Promise<void> {
     const recordId = message.recordId;
-    const page = await this.browser.newPage();
+    const page = await this.browser.newPage({
+      kind: this.site.recordDetailBrowserContext,
+    });
     const maxAttempts = this.config.maxExtractionAttempts;
     let redirectedTo: string | null = null;
     const onFrameNavigated = (frame: Frame): void => {
@@ -74,7 +76,10 @@ export class DetailScraperService {
           await this.persistRedirected(runId, recordId, redirectedTo);
           return;
         }
-        await this.browser.scrollRandomly(page, this.site.scrollFocusSelector);
+        await this.browser.scrollRandomly(
+          page,
+          this.site.recordDetailScrollFocusSelector,
+        );
         let attempts = 0;
         let last: RecordDetailExtractionResult = {
           sectionFound: false,
@@ -82,6 +87,7 @@ export class DetailScraperService {
           html: null,
           bodyContentText: null,
           sourceName: null,
+          sourceUrl: null,
           sourceHtml: null,
           isExpired: false,
         };
@@ -110,6 +116,18 @@ export class DetailScraperService {
           await this.persistRedirected(runId, recordId, redirectedTo);
           return;
         }
+        if (await this.shouldScrapeSourceDetail(last)) {
+          last = {
+            ...last,
+            sourceHtml: await this.scrapeSourceDetail(
+              runId,
+              recordId,
+              page,
+              last.sourceUrl!,
+              lockToken,
+            ),
+          };
+        }
         await this.persist(runId, message, attempts, last);
       } finally {
         page.off('framenavigated', onFrameNavigated);
@@ -117,6 +135,63 @@ export class DetailScraperService {
     } finally {
       await this.browser.closePage(page);
     }
+  }
+  private async shouldScrapeSourceDetail(
+    result: RecordDetailExtractionResult,
+  ): Promise<boolean> {
+    if (!this.site.hasSourceDetailPage || !result.sectionFound) {
+      return false;
+    }
+    if (!result.sourceName || !result.sourceUrl) {
+      return false;
+    }
+    const knownSources = await this.storage.readSourceNames();
+    return !knownSources.has(result.sourceName);
+  }
+  private async scrapeSourceDetail(
+    runId: string,
+    recordId: string,
+    recordPage: Page,
+    sourceUrl: string,
+    lockToken: string,
+  ): Promise<string | null> {
+    const renewed = await this.lock.extend(
+      SESSION_LOCK_KEY,
+      lockToken,
+      this.config.lockTtlMs,
+    );
+    if (!renewed) {
+      throw new Error(
+        `[${recordId}] Lost the site session lock before opening the source detail page.`,
+      );
+    }
+    const sourcePage = await this.browser.newPage({
+      kind: this.site.recordDetailBrowserContext,
+    });
+    let sourceHtml: string | null = null;
+    try {
+      await this.browser.goto(sourcePage, sourceUrl, {
+        referer: recordPage.url(),
+      });
+      sourceHtml = await this.site.extractSourceDetail(sourcePage);
+    } catch (error) {
+      this.logger.warn(
+        `[${recordId}] failed to load the source detail page '${sourceUrl}': ${(error as Error).message}`,
+      );
+    } finally {
+      await this.browser.closePage(sourcePage);
+    }
+    if (!sourceHtml) {
+      this.logger.warn(
+        `[${recordId}] source detail content not found at '${sourceUrl}'; the source will be retried on a later record.`,
+      );
+      await this.storage.appendFailure(runId, {
+        recordId,
+        reason: 'source-detail-missing',
+        attempts: 1,
+      });
+    }
+    return sourceHtml;
   }
   private async persist(
     runId: string,

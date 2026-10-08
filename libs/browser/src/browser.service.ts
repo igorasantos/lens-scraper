@@ -2,34 +2,49 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { chromium, type BrowserContext, type Page } from 'playwright';
 import { ConfigService } from '@app/config';
 import { assertSafeNavigationUrl } from './safe-navigation-url.js';
+export type BrowserContextKind = 'persistent' | 'ephemeral';
 export interface GetContextOptions {
+  kind?: BrowserContextKind;
   headless?: boolean;
+}
+export interface GotoOptions {
+  referer?: string;
 }
 /* v8 ignore start */
 @Injectable()
 /* v8 ignore stop */
 export class BrowserService implements OnModuleDestroy {
   private readonly logger = new Logger(BrowserService.name);
-  private context: BrowserContext | undefined;
-  private launching: Promise<BrowserContext> | undefined;
+  private readonly contexts = new Map<
+    BrowserContextKind,
+    Promise<BrowserContext>
+  >();
   constructor(private readonly config: ConfigService) {}
   async getContext(options: GetContextOptions = {}): Promise<BrowserContext> {
-    if (this.context) {
-      return this.context;
+    const kind = options.kind ?? 'persistent';
+    let launching = this.contexts.get(kind);
+    if (!launching) {
+      launching = this.launchContext(kind, options);
+      this.contexts.set(kind, launching);
+      launching.catch(() => {
+        if (this.contexts.get(kind) === launching) {
+          this.contexts.delete(kind);
+        }
+      });
     }
-    if (!this.launching) {
-      this.launching = this.launchContext(options);
-    }
-    this.context = await this.launching;
-    return this.context;
+    return launching;
   }
   async newPage(options: GetContextOptions = {}): Promise<Page> {
     const context = await this.getContext(options);
     return context.newPage();
   }
-  async goto(page: Page, url: string): Promise<void> {
+  async goto(
+    page: Page,
+    url: string,
+    options: GotoOptions = {},
+  ): Promise<void> {
     assertSafeNavigationUrl(url);
-    await page.goto(url);
+    await page.goto(url, options);
   }
   async scrollRandomly(page: Page, focusSelector: string): Promise<void> {
     await page.click(focusSelector);
@@ -65,18 +80,32 @@ export class BrowserService implements OnModuleDestroy {
     await page.close();
   }
   async closeContext(): Promise<void> {
-    const context = this.context;
-    this.context = undefined;
-    this.launching = undefined;
-    await context?.close();
+    const launching = [...this.contexts.values()];
+    this.contexts.clear();
+    await Promise.all(
+      launching.map(async (pending) => {
+        const context = await pending.catch(() => undefined);
+        await context?.close();
+      }),
+    );
   }
   async onModuleDestroy(): Promise<void> {
     await this.closeContext();
   }
   private async launchContext(
+    kind: BrowserContextKind,
     options: GetContextOptions,
   ): Promise<BrowserContext> {
     const headless = options.headless ?? this.config.browserHeadless;
+    if (kind === 'ephemeral') {
+      this.logger.log(
+        `Launching ephemeral Chromium context (headless=${headless}, no profile)`,
+      );
+      const browser = await chromium.launch({ headless });
+      const context = await browser.newContext();
+      context.on('close', () => void browser.close());
+      return context;
+    }
     const profileDir = this.config.browserProfileDir;
     this.logger.log(
       `Launching persistent Chromium context (headless=${headless}, profileDir=${profileDir})`,

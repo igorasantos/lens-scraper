@@ -5,6 +5,7 @@ coverage
 config/site.config.json
 
 browser-profile/
+browser-profile_logged_in/
 
 *.log
 .DS_Store

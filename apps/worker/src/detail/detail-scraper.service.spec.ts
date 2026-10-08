@@ -11,6 +11,7 @@ describe('DetailScraperService', () => {
   const pastScheduledAt = new Date(Date.now() - 1000).toISOString();
   let page: {
     goto: ReturnType<typeof vi.fn>;
+    url: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
     mainFrame: ReturnType<typeof vi.fn>;
     on: ReturnType<typeof vi.fn>;
@@ -30,16 +31,25 @@ describe('DetailScraperService', () => {
     scrollRandomly: ReturnType<typeof vi.fn>;
     closePage: ReturnType<typeof vi.fn>;
   };
+  let sourcePage: {
+    goto: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  };
   let site: {
+    recordDetailBrowserContext: string;
+    recordDetailScrollFocusSelector: string;
+    hasSourceDetailPage: boolean;
     buildRecordDetailUrl: ReturnType<typeof vi.fn>;
     isRecordDetailUrl: ReturnType<typeof vi.fn>;
     extractRecordDetail: ReturnType<typeof vi.fn>;
+    extractSourceDetail: ReturnType<typeof vi.fn>;
   };
   let storage: {
     writeRecordDetail: ReturnType<typeof vi.fn>;
     writeExpiredRecordDetail: ReturnType<typeof vi.fn>;
     appendRecordId: ReturnType<typeof vi.fn>;
     appendSourceName: ReturnType<typeof vi.fn>;
+    readSourceNames: ReturnType<typeof vi.fn>;
     writeSourceDetail: ReturnType<typeof vi.fn>;
     appendFailure: ReturnType<typeof vi.fn>;
     appendExpiredRecord: ReturnType<typeof vi.fn>;
@@ -78,6 +88,7 @@ describe('DetailScraperService', () => {
   beforeEach(() => {
     page = {
       goto: vi.fn().mockResolvedValue(undefined),
+      url: vi.fn().mockReturnValue('https://www.site.com/123'),
       close: vi.fn().mockResolvedValue(undefined),
       mainFrame: vi.fn().mockReturnValue({
         url: () => 'https://www.site.com/123',
@@ -87,25 +98,37 @@ describe('DetailScraperService', () => {
     };
     browser = {
       newPage: vi.fn().mockResolvedValue(page as unknown as Page),
-      goto: vi.fn((p: { goto: (url: string) => Promise<void> }, url: string) =>
-        p.goto(url),
+      goto: vi.fn(
+        (
+          p: { goto: (url: string, options?: unknown) => Promise<void> },
+          url: string,
+          options?: unknown,
+        ) => (options === undefined ? p.goto(url) : p.goto(url, options)),
       ),
       scrollRandomly: vi.fn().mockResolvedValue(undefined),
       closePage: vi.fn((p: { close: () => Promise<void> }) => p.close()),
     };
+    sourcePage = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
     site = {
-      scrollFocusSelector: '#app',
+      recordDetailBrowserContext: 'ephemeral',
+      recordDetailScrollFocusSelector: '#app',
+      hasSourceDetailPage: false,
       buildRecordDetailUrl: vi.fn(
         (recordId: string) => `https://www.site.com/${recordId}`,
       ),
       isRecordDetailUrl: vi.fn().mockReturnValue(true),
       extractRecordDetail: vi.fn(),
+      extractSourceDetail: vi.fn().mockResolvedValue('<div>about source</div>'),
     };
     storage = {
       writeRecordDetail: vi.fn().mockResolvedValue(undefined),
       writeExpiredRecordDetail: vi.fn().mockResolvedValue(undefined),
       appendRecordId: vi.fn().mockResolvedValue(undefined),
       appendSourceName: vi.fn().mockResolvedValue(true),
+      readSourceNames: vi.fn().mockResolvedValue(new Set<string>()),
       writeSourceDetail: vi.fn().mockResolvedValue(undefined),
       appendFailure: vi.fn().mockResolvedValue(undefined),
       appendExpiredRecord: vi.fn().mockResolvedValue(undefined),
@@ -146,6 +169,8 @@ describe('DetailScraperService', () => {
       runId: 'run-1',
     });
     expect(lock.acquire).toHaveBeenCalledWith(SESSION_LOCK_KEY, 90000);
+    expect(browser.newPage).toHaveBeenCalledWith({ kind: 'ephemeral' });
+    expect(browser.scrollRandomly).toHaveBeenCalledWith(page, '#app');
     expect(page.goto).toHaveBeenCalledWith('https://www.site.com/123');
     expect(site.extractRecordDetail).toHaveBeenCalledTimes(1);
     expect(storage.writeRecordDetail).toHaveBeenCalledWith(
@@ -273,8 +298,7 @@ describe('DetailScraperService', () => {
       sectionFound: true,
       hasBodyContent: true,
       html: '<div>ok</div>',
-      bodyContentText:
-        'Our platform focuses on APIs.',
+      bodyContentText: 'Our platform focuses on APIs.',
       sourceName: null,
       sourceHtml: null,
       isExpired: true,
@@ -722,5 +746,145 @@ describe('DetailScraperService', () => {
     ).rejects.toThrow('boom');
     expect(page.close).toHaveBeenCalledTimes(1);
     expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
+  });
+  describe('when the source content lives on its own detail page', () => {
+    const extracted = {
+      sectionFound: true,
+      hasBodyContent: true,
+      html: '<div>ok</div>',
+      bodyContentText:
+        'Our platform focuses on distributed systems and scalable APIs, with new capabilities rolling out this quarter.',
+      sourceName: 'source-alpha',
+      sourceUrl: 'https://www.site.com/source/source-alpha?ref=1',
+      sourceHtml: null,
+      isExpired: false,
+    };
+    beforeEach(() => {
+      site.hasSourceDetailPage = true;
+      site.extractRecordDetail.mockResolvedValue(extracted);
+      browser.newPage
+        .mockResolvedValueOnce(page as unknown as Page)
+        .mockResolvedValueOnce(sourcePage as unknown as Page);
+    });
+    it('opens the source url in a new page of the same context, with the record page as referer, and stores what it extracts', async () => {
+      const service = await buildService();
+      await service.handle({
+        recordId: '123',
+        scheduledAt: pastScheduledAt,
+        runId: 'run-1',
+      });
+      expect(browser.newPage).toHaveBeenCalledTimes(2);
+      expect(browser.newPage).toHaveBeenNthCalledWith(2, { kind: 'ephemeral' });
+      expect(sourcePage.goto).toHaveBeenCalledWith(
+        'https://www.site.com/source/source-alpha?ref=1',
+        { referer: 'https://www.site.com/123' },
+      );
+      expect(site.extractSourceDetail).toHaveBeenCalledWith(sourcePage);
+      expect(sourcePage.close).toHaveBeenCalledTimes(1);
+      expect(page.close).toHaveBeenCalledTimes(1);
+      expect(storage.appendSourceName).toHaveBeenCalledWith('source-alpha');
+      expect(storage.writeSourceDetail).toHaveBeenCalledWith(
+        'source-alpha',
+        '<div>about source</div>',
+      );
+      expect(storage.appendFailure).not.toHaveBeenCalled();
+      expect(lock.extend).toHaveBeenCalledTimes(2);
+    });
+    it('skips the source detail page when the source was already recorded', async () => {
+      storage.readSourceNames.mockResolvedValue(new Set(['source-alpha']));
+      const service = await buildService();
+      await service.handle({
+        recordId: '123',
+        scheduledAt: pastScheduledAt,
+        runId: 'run-1',
+      });
+      expect(browser.newPage).toHaveBeenCalledTimes(1);
+      expect(site.extractSourceDetail).not.toHaveBeenCalled();
+      expect(storage.appendSourceName).not.toHaveBeenCalled();
+      expect(storage.writeSourceDetail).not.toHaveBeenCalled();
+    });
+    it('skips the source detail page when extraction found no source url', async () => {
+      site.extractRecordDetail.mockResolvedValue({
+        ...extracted,
+        sourceName: null,
+        sourceUrl: null,
+      });
+      const service = await buildService();
+      await service.handle({
+        recordId: '123',
+        scheduledAt: pastScheduledAt,
+        runId: 'run-1',
+      });
+      expect(storage.readSourceNames).not.toHaveBeenCalled();
+      expect(browser.newPage).toHaveBeenCalledTimes(1);
+    });
+    it('skips the source detail page when the record section was never found', async () => {
+      site.extractRecordDetail.mockResolvedValue({
+        ...extracted,
+        sectionFound: false,
+        html: null,
+      });
+      const service = await buildService();
+      await service.handle({
+        recordId: '123',
+        scheduledAt: pastScheduledAt,
+        runId: 'run-1',
+      });
+      expect(browser.newPage).toHaveBeenCalledTimes(1);
+      expect(site.extractSourceDetail).not.toHaveBeenCalled();
+    });
+    it('records a source-detail-missing failure, and leaves the source unrecorded so a later record retries it, when the content never appears', async () => {
+      site.extractSourceDetail.mockResolvedValue(null);
+      const service = await buildService();
+      await service.handle({
+        recordId: '123',
+        scheduledAt: pastScheduledAt,
+        runId: 'run-1',
+      });
+      expect(storage.appendFailure).toHaveBeenCalledWith('run-1', {
+        recordId: '123',
+        reason: 'source-detail-missing',
+        attempts: 1,
+      });
+      expect(storage.appendSourceName).not.toHaveBeenCalled();
+      expect(storage.writeSourceDetail).not.toHaveBeenCalled();
+      expect(storage.writeRecordDetail).toHaveBeenCalledWith(
+        'en',
+        '123',
+        '<div>ok</div>',
+      );
+    });
+    it('still persists the record and closes the source page when navigating to it throws', async () => {
+      sourcePage.goto.mockRejectedValue(new Error('net::ERR_ABORTED'));
+      const service = await buildService();
+      await service.handle({
+        recordId: '123',
+        scheduledAt: pastScheduledAt,
+        runId: 'run-1',
+      });
+      expect(sourcePage.close).toHaveBeenCalledTimes(1);
+      expect(site.extractSourceDetail).not.toHaveBeenCalled();
+      expect(storage.appendFailure).toHaveBeenCalledWith(
+        'run-1',
+        expect.objectContaining({ reason: 'source-detail-missing' }),
+      );
+      expect(storage.writeRecordDetail).toHaveBeenCalledTimes(1);
+      expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
+    });
+    it('throws and releases the lock, without opening the source page, when the lock is lost before it', async () => {
+      lock.extend.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+      const service = await buildService();
+      await expect(
+        service.handle({
+          recordId: '123',
+          scheduledAt: pastScheduledAt,
+          runId: 'run-1',
+        }),
+      ).rejects.toThrow(/Lost the site session lock/);
+      expect(browser.newPage).toHaveBeenCalledTimes(1);
+      expect(storage.writeRecordDetail).not.toHaveBeenCalled();
+      expect(page.close).toHaveBeenCalledTimes(1);
+      expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
+    });
   });
 });
