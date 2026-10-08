@@ -25,7 +25,7 @@ runtime:
   scripts:
     - type: before-request
       code: |-
-        bru.setVar("count", Math.floor(Math.random() * 13) + 3);
+        bru.setVar("count", Math.floor(Math.random() * 5000) + 3);
 
 settings:
   encodeUrl: true

@@ -111,20 +111,68 @@ describe('BrowserService', () => {
       onClose();
       expect(browser.close).toHaveBeenCalledTimes(1);
     });
-    it('keeps the persistent and ephemeral contexts apart, reusing each one per kind', async () => {
-      const persistent = { newPage: vi.fn(), close: vi.fn() };
+    it('reuses the open context while the kind stays the same', async () => {
       const ephemeral = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
-      launchPersistentContext.mockResolvedValue(persistent);
       launch.mockResolvedValue({
         newContext: vi.fn().mockResolvedValue(ephemeral),
         close: vi.fn(),
       });
+      expect(await service.getContext({ kind: 'ephemeral' })).toBe(ephemeral);
+      expect(await service.getContext({ kind: 'ephemeral' })).toBe(ephemeral);
+      expect(launch).toHaveBeenCalledTimes(1);
+      expect(ephemeral.close).not.toHaveBeenCalled();
+    });
+    it('closes the open context of the other kind before launching a new one', async () => {
+      const persistent = { newPage: vi.fn(), close: vi.fn() };
+      const ephemeral = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
+      launchPersistentContext.mockResolvedValue(persistent);
+      launch.mockImplementation(() => {
+        expect(persistent.close).toHaveBeenCalledTimes(1);
+        return Promise.resolve({
+          newContext: vi.fn().mockResolvedValue(ephemeral),
+          close: vi.fn(),
+        });
+      });
       expect(await service.getContext({ kind: 'persistent' })).toBe(persistent);
       expect(await service.getContext({ kind: 'ephemeral' })).toBe(ephemeral);
-      expect(await service.getContext()).toBe(persistent);
-      expect(await service.getContext({ kind: 'ephemeral' })).toBe(ephemeral);
-      expect(launchPersistentContext).toHaveBeenCalledTimes(1);
       expect(launch).toHaveBeenCalledTimes(1);
+      expect(ephemeral.close).not.toHaveBeenCalled();
+    });
+    it('relaunches a kind after switching away from it and back', async () => {
+      const firstPersistent = { newPage: vi.fn(), close: vi.fn() };
+      const secondPersistent = { newPage: vi.fn(), close: vi.fn() };
+      const ephemeral = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
+      launchPersistentContext
+        .mockResolvedValueOnce(firstPersistent)
+        .mockResolvedValueOnce(secondPersistent);
+      launch.mockResolvedValue({
+        newContext: vi.fn().mockResolvedValue(ephemeral),
+        close: vi.fn(),
+      });
+      expect(await service.getContext()).toBe(firstPersistent);
+      expect(await service.getContext({ kind: 'ephemeral' })).toBe(ephemeral);
+      expect(await service.getContext()).toBe(secondPersistent);
+      expect(firstPersistent.close).toHaveBeenCalledTimes(1);
+      expect(ephemeral.close).toHaveBeenCalledTimes(1);
+      expect(launchPersistentContext).toHaveBeenCalledTimes(2);
+    });
+    it('still launches the new kind when the other kind\'s launch had failed', async () => {
+      const ephemeral = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
+      let rejectLaunch: (error: Error) => void;
+      launchPersistentContext.mockReturnValue(
+        new Promise((_resolve, reject) => {
+          rejectLaunch = reject;
+        }),
+      );
+      launch.mockResolvedValue({
+        newContext: vi.fn().mockResolvedValue(ephemeral),
+        close: vi.fn(),
+      });
+      const pending = service.getContext();
+      const switching = service.getContext({ kind: 'ephemeral' });
+      rejectLaunch!(new Error('launch failed'));
+      await expect(pending).rejects.toThrow('launch failed');
+      await expect(switching).resolves.toBe(ephemeral);
     });
     it('forgets a failed launch so the next call tries again', async () => {
       const context = { newPage: vi.fn(), close: vi.fn() };
@@ -191,18 +239,14 @@ describe('BrowserService', () => {
       expect(result).toBe(secondContext);
       expect(launchPersistentContext).toHaveBeenCalledTimes(2);
     });
-    it('closes both the persistent and the ephemeral contexts', async () => {
-      const persistent = { newPage: vi.fn(), close: vi.fn() };
+    it('closes the ephemeral context and its browser', async () => {
       const ephemeral = { newPage: vi.fn(), close: vi.fn(), on: vi.fn() };
-      launchPersistentContext.mockResolvedValue(persistent);
       launch.mockResolvedValue({
         newContext: vi.fn().mockResolvedValue(ephemeral),
         close: vi.fn(),
       });
-      await service.getContext();
       await service.getContext({ kind: 'ephemeral' });
       await service.closeContext();
-      expect(persistent.close).toHaveBeenCalledTimes(1);
       expect(ephemeral.close).toHaveBeenCalledTimes(1);
     });
     it('skips a context whose launch failed when closing', async () => {

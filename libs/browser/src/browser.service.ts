@@ -24,7 +24,14 @@ export class BrowserService implements OnModuleDestroy {
     const kind = options.kind ?? 'persistent';
     let launching = this.contexts.get(kind);
     if (!launching) {
-      launching = this.launchContext(kind, options);
+      if (this.contexts.size > 0) {
+        this.logger.log(
+          `Closing the ${[...this.contexts.keys()].join(', ')} context before launching the ${kind} one`,
+        );
+      }
+      launching = this.closeContext().then(() =>
+        this.launchContext(kind, options),
+      );
       this.contexts.set(kind, launching);
       launching.catch(() => {
         if (this.contexts.get(kind) === launching) {
