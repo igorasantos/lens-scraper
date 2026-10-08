@@ -2,10 +2,12 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Frame, Page } from 'playwright';
 import { BrowserService } from '@app/browser';
 import {
+  browserContextForMode,
   guessLanguageAlpha2,
   SiteService,
   UNKNOWN_LANGUAGE_ALPHA2,
   type RecordDetailExtractionResult,
+  type SessionMode,
 } from '@app/site';
 import { StorageService } from '@app/storage';
 import { LOCK_PORT, SESSION_LOCK_KEY, type LockPort } from '@app/redis-lock';
@@ -54,16 +56,16 @@ export class DetailScraperService {
     message: RecordDetailMessage,
     lockToken: string,
   ): Promise<void> {
-    const recordId = message.recordId;
+    const { recordId, detailMode } = message;
     const page = await this.browser.newPage({
-      kind: this.site.recordDetailBrowserContext,
+      kind: browserContextForMode(detailMode),
     });
     const maxAttempts = this.config.maxExtractionAttempts;
     let redirectedTo: string | null = null;
     const onFrameNavigated = (frame: Frame): void => {
       if (
         frame === page.mainFrame() &&
-        !this.site.isRecordDetailUrl(frame.url(), recordId)
+        !this.site.isRecordDetailUrl(frame.url(), recordId, detailMode)
       ) {
         redirectedTo = frame.url();
       }
@@ -71,14 +73,17 @@ export class DetailScraperService {
     try {
       page.on('framenavigated', onFrameNavigated);
       try {
-        await this.browser.goto(page, this.site.buildRecordDetailUrl(recordId));
+        await this.browser.goto(
+          page,
+          this.site.buildRecordDetailUrl(recordId, detailMode),
+        );
         if (redirectedTo) {
           await this.persistRedirected(runId, recordId, redirectedTo);
           return;
         }
         await this.browser.scrollRandomly(
           page,
-          this.site.recordDetailScrollFocusSelector,
+          this.site.recordDetailScrollFocusSelector(detailMode),
         );
         let attempts = 0;
         let last: RecordDetailExtractionResult = {
@@ -107,7 +112,11 @@ export class DetailScraperService {
           if (redirectedTo) {
             break;
           }
-          last = await this.site.extractRecordDetail(page, recordId);
+          last = await this.site.extractRecordDetail(
+            page,
+            recordId,
+            detailMode,
+          );
           if (last.sectionFound && last.hasBodyContent) {
             break;
           }
@@ -116,12 +125,13 @@ export class DetailScraperService {
           await this.persistRedirected(runId, recordId, redirectedTo);
           return;
         }
-        if (await this.shouldScrapeSourceDetail(last)) {
+        if (await this.shouldScrapeSourceDetail(detailMode, last)) {
           last = {
             ...last,
             sourceHtml: await this.scrapeSourceDetail(
               runId,
               recordId,
+              detailMode,
               page,
               last.sourceUrl!,
               lockToken,
@@ -137,9 +147,10 @@ export class DetailScraperService {
     }
   }
   private async shouldScrapeSourceDetail(
+    detailMode: SessionMode,
     result: RecordDetailExtractionResult,
   ): Promise<boolean> {
-    if (!this.site.hasSourceDetailPage || !result.sectionFound) {
+    if (!this.site.hasSourceDetailPage(detailMode) || !result.sectionFound) {
       return false;
     }
     if (!result.sourceName || !result.sourceUrl) {
@@ -151,6 +162,7 @@ export class DetailScraperService {
   private async scrapeSourceDetail(
     runId: string,
     recordId: string,
+    detailMode: SessionMode,
     recordPage: Page,
     sourceUrl: string,
     lockToken: string,
@@ -166,14 +178,14 @@ export class DetailScraperService {
       );
     }
     const sourcePage = await this.browser.newPage({
-      kind: this.site.recordDetailBrowserContext,
+      kind: browserContextForMode(detailMode),
     });
     let sourceHtml: string | null = null;
     try {
       await this.browser.goto(sourcePage, sourceUrl, {
         referer: recordPage.url(),
       });
-      sourceHtml = await this.site.extractSourceDetail(sourcePage);
+      sourceHtml = await this.site.extractSourceDetail(sourcePage, detailMode);
     } catch (error) {
       this.logger.warn(
         `[${recordId}] failed to load the source detail page '${sourceUrl}': ${(error as Error).message}`,

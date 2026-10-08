@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { QueueService, stampScheduledAt } from '@app/queue';
 import { StorageService } from '@app/storage';
 import { generateRunId } from '../common/run-id.util.js';
+import type { DetailModeRequestDto } from '../common/detail-mode-request.dto.js';
 import {
   RECORD_ID_PATTERN,
   type RecordDetailsRequestDto,
@@ -17,11 +18,12 @@ export class DetailService {
     private readonly queue: QueueService,
     private readonly storage: StorageService,
   ) {}
-  async queueRecordDetails(
-    recordIds: RecordDetailsRequestDto,
-  ): Promise<RecordDetailsResponseDto[]> {
+  async queueRecordDetails({
+    detail_mode: detailMode,
+    records_to_reprocess: recordIds,
+  }: RecordDetailsRequestDto): Promise<RecordDetailsResponseDto[]> {
     if (recordIds.length === 0) {
-      throw new BadRequestException('recordIds must not be empty');
+      throw new BadRequestException('records_to_reprocess must not be empty');
     }
     const invalid = recordIds.filter(
       (recordId) => !RECORD_ID_PATTERN.test(recordId),
@@ -37,7 +39,9 @@ export class DetailService {
       uniqueRecordIds.filter((recordId) => !known.has(recordId)),
     );
     if (scheduled.length > 0) {
-      await this.queue.publishRecordDetailsBatch(scheduled);
+      await this.queue.publishRecordDetailsBatch(
+        scheduled.map((entry) => ({ ...entry, detailMode })),
+      );
     }
     const scheduledAtById = new Map(
       scheduled.map(({ recordId, scheduledAt }) => [recordId, scheduledAt]),
@@ -49,14 +53,18 @@ export class DetailService {
         : { recordId, status: 'skipped' as const };
     });
   }
-  async reprocessExpiredRecords(): Promise<ExpiredReprocessResponseDto> {
+  async reprocessExpiredRecords({
+    detail_mode: detailMode,
+  }: DetailModeRequestDto): Promise<ExpiredReprocessResponseDto> {
     const runId = generateRunId();
-    await this.queue.publishExpiredReprocess({ runId });
+    await this.queue.publishExpiredReprocess({ runId, detailMode });
     return { runId, status: 'queued' };
   }
-  async reprocessXxRecords(): Promise<XxReprocessResponseDto> {
+  async reprocessXxRecords({
+    detail_mode: detailMode,
+  }: DetailModeRequestDto): Promise<XxReprocessResponseDto> {
     const runId = generateRunId();
-    await this.queue.publishXxReprocess({ runId });
+    await this.queue.publishXxReprocess({ runId, detailMode });
     return { runId, status: 'queued' };
   }
 }

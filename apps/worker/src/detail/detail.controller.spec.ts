@@ -51,6 +51,7 @@ describe('DetailController', () => {
     it('delegates to DetailScraperService', async () => {
       const message = {
         recordId: '123',
+        detailMode: 'logged-out' as const,
         scheduledAt: '2026-01-01T00:00:00.000Z',
       };
       await detailController.handleRecordDetail(message);
@@ -65,6 +66,7 @@ describe('DetailController', () => {
     it('dead-letters under the message runId when present', async () => {
       const message = {
         recordId: '123',
+        detailMode: 'logged-out' as const,
         scheduledAt: '2026-01-01T00:00:00.000Z',
         runId: 'run-9',
       };
@@ -79,9 +81,9 @@ describe('DetailController', () => {
   });
   describe('handleExpiredReprocess', () => {
     it('delegates to ExpiredReprocessService', async () => {
-      const message = { runId: 'run-3' };
+      const message = { runId: 'run-3', detailMode: 'logged-in' as const };
       await detailController.handleExpiredReprocess(message);
-      expect(expiredReprocess.run).toHaveBeenCalledWith('run-3');
+      expect(expiredReprocess.run).toHaveBeenCalledWith('run-3', 'logged-in');
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.expired.reprocess',
         { runId: 'run-3' },
@@ -92,9 +94,9 @@ describe('DetailController', () => {
   });
   describe('handleXxReprocess', () => {
     it('delegates to XxReprocessService', async () => {
-      const message = { runId: 'run-3b' };
+      const message = { runId: 'run-3b', detailMode: 'logged-out' as const };
       await detailController.handleXxReprocess(message);
-      expect(xxReprocess.run).toHaveBeenCalledWith('run-3b');
+      expect(xxReprocess.run).toHaveBeenCalledWith('run-3b', 'logged-out');
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.xx.reprocess',
         { runId: 'run-3b' },

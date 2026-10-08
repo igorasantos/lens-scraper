@@ -6,6 +6,15 @@ info:
 http:
   method: POST
   url: "{{baseUrl}}/scrape/records/xx/reprocess"
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "detail_mode": "logged-out"
+      }
 
 settings:
   encodeUrl: true

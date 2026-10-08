@@ -8,7 +8,7 @@ Every DOM selector, URL template, and on-disk filename lives in a JSON file at `
 
 ## Architecture
 
-- **Browser** — Playwright/Chromium. Each stage picks its context in the site config (`listing.browserContext` / `detail.browserContext`): `persistent` reuses the profile at `BROWSER_PROFILE_DIR` (and whatever session it holds), `ephemeral` starts a fresh profile-less context. If the target site needs a logged-in session for a `persistent` stage, `npm run login:bootstrap` opens it headed once; every later run reuses that session. Public sites that need no login skip this entirely (see `SITE_REQUIRES_LOGIN` below).
+- **Browser** — Playwright/Chromium. Each request picks a session mode per stage: `listing_mode` (listing init) and `detail_mode` (listing init and every reprocess endpoint), each `logged-in` or `logged-out`. `logged-in` runs in the persistent profile at `BROWSER_PROFILE_DIR` (and whatever session it holds) with the site config's `listing_logged_in` / `detail_logged_in` blocks; `logged-out` runs in a fresh profile-less context with `listing_logged_out` / `detail_logged_out`. A `logged-out` listing reads only the first batch of records at the given URL — no pagination, scrolling or clicks. If the target site needs a logged-in session, `npm run login:bootstrap` opens it headed once; every later run reuses that session. Public sites that need no login skip this entirely (see `SITE_REQUIRES_LOGIN` below).
 - **Queue** — Kafka, via a local Redpanda broker. Each pipeline stage is its own topic; listing pagination is one message per page, so no handler blocks the consumer long enough to trigger a rebalance.
 - **Lock** — a single Redis mutex; only one worker drives the browser session at a time.
 - **Storage** — plain files on disk, outside this repo (`$LOCAL_STORAGE_DIR`, default `../scraped-data`).
@@ -76,7 +76,7 @@ libs/
 6. Kick off a crawl:
 
    ```bash
-   curl -X POST http://localhost:3000/scrape/listing/init -H 'Content-Type: application/json' -d '{}'
+   curl -X POST http://localhost:3000/scrape/listing/init -H 'Content-Type: application/json' -d '{"listing_mode":"logged-in","detail_mode":"logged-out"}'
    ```
 
    A ready-made [Bruno](https://www.usebruno.com/) collection for every endpoint lives in [`bruno/`](bruno/).

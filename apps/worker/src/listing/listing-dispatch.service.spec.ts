@@ -45,7 +45,9 @@ describe('ListingDispatchService', () => {
   it('dedupes against records.txt, stamps a shared scheduledAt, and publishes the rest', async () => {
     storage.readRecordIds.mockResolvedValue(new Set(['2']));
     const service = await buildService();
-    const result = await service.dispatch('run-1', ['1', '2', '3']);
+    const result = await service.dispatch('run-1', ['1', '2', '3'], {
+      detailMode: 'logged-out',
+    });
     expect(result.dispatched).toEqual(['1', '3']);
     expect(result.skipped).toEqual(['2']);
     expect(storage.writeListingIds).not.toHaveBeenCalled();
@@ -54,14 +56,26 @@ describe('ListingDispatchService', () => {
     expect(published).toHaveLength(2);
     expect(published[0].scheduledAt).toBe(published[1].scheduledAt);
     expect(published).toEqual([
-      { recordId: '1', scheduledAt: published[0].scheduledAt, runId: 'run-1' },
-      { recordId: '3', scheduledAt: published[1].scheduledAt, runId: 'run-1' },
+      {
+        recordId: '1',
+        scheduledAt: published[0].scheduledAt,
+        runId: 'run-1',
+        detailMode: 'logged-out',
+      },
+      {
+        recordId: '3',
+        scheduledAt: published[1].scheduledAt,
+        runId: 'run-1',
+        detailMode: 'logged-out',
+      },
     ]);
     expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
   });
   it('deduplicates repeated ids within the input itself', async () => {
     const service = await buildService();
-    const result = await service.dispatch('run-1', ['1', '1', '2']);
+    const result = await service.dispatch('run-1', ['1', '1', '2'], {
+      detailMode: 'logged-out',
+    });
     expect(result.dispatched).toEqual(['1', '2']);
     expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
     expect(queue.publishRecordDetailsBatch.mock.calls[0][0]).toHaveLength(2);
@@ -69,7 +83,9 @@ describe('ListingDispatchService', () => {
   it('publishes nothing when everything is already scraped', async () => {
     storage.readRecordIds.mockResolvedValue(new Set(['1', '2']));
     const service = await buildService();
-    const result = await service.dispatch('run-1', ['1', '2']);
+    const result = await service.dispatch('run-1', ['1', '2'], {
+      detailMode: 'logged-out',
+    });
     expect(result).toEqual({
       dispatched: [],
       skipped: ['1', '2'],
@@ -84,7 +100,9 @@ describe('ListingDispatchService', () => {
       Promise.resolve(id === '2'),
     );
     const service = await buildService();
-    const result = await service.dispatch('run-1', ['1', '2', '3']);
+    const result = await service.dispatch('run-1', ['1', '2', '3'], {
+      detailMode: 'logged-out',
+    });
     expect(result.dispatched).toEqual(['1', '3']);
     expect(result.skipped).toEqual(['2']);
     expect(storage.writeListingIds).not.toHaveBeenCalled();
@@ -102,7 +120,9 @@ describe('ListingDispatchService', () => {
       Promise.resolve(id === '2'),
     );
     const service = await buildService();
-    await service.dispatch('run-1', ['1', '2', '2', '3']);
+    await service.dispatch('run-1', ['1', '2', '2', '3'], {
+      detailMode: 'logged-out',
+    });
     expect(log).toHaveBeenCalledWith(
       '[run-1] 4 record id(s) received - 1 duplicate(s) = 3 unique - 1 already in the scraped records control files - 1 already in the scraped expired dir = 1 record(s) left to dispatch.',
     );
@@ -111,7 +131,9 @@ describe('ListingDispatchService', () => {
   it('caps scrape.record.detail dispatch at MAX_RECORD_EXTRACTIONS, deferring the rest', async () => {
     config.maxRecordExtractions = 2;
     const service = await buildService();
-    const result = await service.dispatch('run-1', ['1', '2', '3', '4']);
+    const result = await service.dispatch('run-1', ['1', '2', '3', '4'], {
+      detailMode: 'logged-out',
+    });
     expect(result.dispatched).toEqual(['1', '2']);
     expect(result.deferred).toEqual(['3', '4']);
     expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
@@ -125,6 +147,7 @@ describe('ListingDispatchService', () => {
     config.maxRecordExtractions = 2;
     const service = await buildService();
     const result = await service.dispatch('run-1', ['1', '2', '3', '4'], {
+      detailMode: 'logged-out',
       dispatchCount: 3,
     });
     expect(result.dispatched).toEqual(['1', '2', '3']);
@@ -133,7 +156,9 @@ describe('ListingDispatchService', () => {
   it('publishes nothing when every new id is already in the scraped expired dir', async () => {
     storage.hasExpiredRecordDetail.mockResolvedValue(true);
     const service = await buildService();
-    const result = await service.dispatch('run-1', ['1', '2']);
+    const result = await service.dispatch('run-1', ['1', '2'], {
+      detailMode: 'logged-out',
+    });
     expect(result).toEqual({
       dispatched: [],
       skipped: ['1', '2'],
@@ -146,18 +171,20 @@ describe('ListingDispatchService', () => {
   it('does not check for expired html for ids already in the scraped records control files', async () => {
     storage.readRecordIds.mockResolvedValue(new Set(['1']));
     const service = await buildService();
-    await service.dispatch('run-1', ['1']);
+    await service.dispatch('run-1', ['1'], { detailMode: 'logged-out' });
     expect(storage.hasExpiredRecordDetail).not.toHaveBeenCalled();
   });
   describe('with recycle', () => {
     it('forwards dispatchCount on the recycle message', async () => {
       const service = await buildService();
       await service.dispatch('run-1', ['1'], {
+        detailMode: 'logged-out',
         recycle: true,
         dispatchCount: 5,
       });
       expect(queue.publishRecordsRecycle).toHaveBeenCalledWith({
         runId: 'run-1',
+        detailMode: 'logged-out',
         dispatchCount: 5,
       });
     });
@@ -172,11 +199,13 @@ describe('ListingDispatchService', () => {
       });
       const service = await buildService();
       const result = await service.dispatch('run-1', ['1', '2', '3'], {
+        detailMode: 'logged-out',
         recycle: true,
       });
       expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1', '3']);
       expect(queue.publishRecordsRecycle).toHaveBeenCalledWith({
         runId: 'run-1',
+        detailMode: 'logged-out',
       });
       expect(callOrder).toEqual(['writeListingIds', 'publishRecordsRecycle']);
       expect(result).toEqual({
@@ -194,6 +223,7 @@ describe('ListingDispatchService', () => {
       storage.readRecordIds.mockResolvedValue(new Set(['2']));
       const service = await buildService();
       await service.dispatch('run-1', ['1', '1', '2', '3', '3'], {
+        detailMode: 'logged-out',
         recycle: true,
       });
       expect(log).toHaveBeenCalledWith(
@@ -207,35 +237,55 @@ describe('ListingDispatchService', () => {
       );
       const service = await buildService();
       const result = await service.dispatch('run-1', ['1', '2'], {
+        detailMode: 'logged-out',
         recycle: true,
       });
       expect(storage.writeListingIds).toHaveBeenCalledWith('run-1', ['1']);
       expect(result.skipped).toEqual(['2']);
       expect(queue.publishRecordsRecycle).toHaveBeenCalledWith({
         runId: 'run-1',
+        detailMode: 'logged-out',
       });
       expect(queue.publishRecordLanguageClassifyBatch).not.toHaveBeenCalled();
     });
     it('does not hand anything to recycling when everything is already scraped', async () => {
       storage.readRecordIds.mockResolvedValue(new Set(['1']));
       const service = await buildService();
-      await service.dispatch('run-1', ['1'], { recycle: true });
+      await service.dispatch('run-1', ['1'], {
+        detailMode: 'logged-out',
+        recycle: true,
+      });
       expect(storage.writeListingIds).not.toHaveBeenCalled();
       expect(queue.publishRecordsRecycle).not.toHaveBeenCalled();
     });
     it('does not recycle or write listing_ids_new.txt when the flag is false', async () => {
       const service = await buildService();
-      await service.dispatch('run-1', ['1'], { recycle: false });
+      await service.dispatch('run-1', ['1'], {
+        detailMode: 'logged-out',
+        recycle: false,
+      });
       expect(storage.writeListingIds).not.toHaveBeenCalled();
       expect(queue.publishRecordsRecycle).not.toHaveBeenCalled();
       expect(queue.publishRecordDetailsBatch).toHaveBeenCalledTimes(1);
     });
   });
   describe('dispatchToScrape', () => {
+    it('stamps the detail mode on every published record detail message', async () => {
+      const service = await buildService();
+      await service.dispatchToScrape('run-1', ['1', '2'], {
+        detailMode: 'logged-in',
+      });
+      const [published] = queue.publishRecordDetailsBatch.mock.calls[0];
+      expect(
+        published.map((entry: { detailMode: string }) => entry.detailMode),
+      ).toEqual(['logged-in', 'logged-in']);
+    });
     it('caps at MAX_RECORD_EXTRACTIONS without deduping, checking for expired html, or touching listing_ids_new.txt', async () => {
       config.maxRecordExtractions = 2;
       const service = await buildService();
-      const result = await service.dispatchToScrape('run-1', ['1', '2', '3']);
+      const result = await service.dispatchToScrape('run-1', ['1', '2', '3'], {
+        detailMode: 'logged-out',
+      });
       expect(result).toEqual({
         dispatched: ['1', '2'],
         deferred: ['3'],
@@ -247,7 +297,9 @@ describe('ListingDispatchService', () => {
     });
     it('publishes nothing for an empty list', async () => {
       const service = await buildService();
-      const result = await service.dispatchToScrape('run-1', []);
+      const result = await service.dispatchToScrape('run-1', [], {
+        detailMode: 'logged-out',
+      });
       expect(result).toEqual({
         dispatched: [],
         deferred: [],

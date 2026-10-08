@@ -55,16 +55,15 @@ describe('ListingController', () => {
     listingController = app.get<ListingController>(ListingController);
   });
   describe('handleListingInit', () => {
-    it('delegates to ListingCrawlerService.start', async () => {
-      const message = { runId: 'run-1', baseUrl: 'https://example.com' };
+    it('delegates the whole message to ListingCrawlerService.start', async () => {
+      const message = {
+        runId: 'run-1',
+        baseUrl: 'https://example.com',
+        listingMode: 'logged-out' as const,
+        detailMode: 'logged-in' as const,
+      };
       await listingController.handleListingInit(message);
-      expect(listingCrawler.start).toHaveBeenCalledWith(
-        'run-1',
-        'https://example.com',
-        undefined,
-        undefined,
-        undefined,
-      );
+      expect(listingCrawler.start).toHaveBeenCalledWith(message);
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.listing.init',
         { runId: 'run-1' },
@@ -72,50 +71,18 @@ describe('ListingController', () => {
         expect.any(Function),
       );
     });
-    it('passes startPage through to ListingCrawlerService.start', async () => {
+    it('passes startPage, recycle and dispatchCount through with the message', async () => {
       const message = {
         runId: 'run-1',
         baseUrl: 'https://example.com',
+        listingMode: 'logged-in' as const,
+        detailMode: 'logged-out' as const,
         startPage: 3,
-      };
-      await listingController.handleListingInit(message);
-      expect(listingCrawler.start).toHaveBeenCalledWith(
-        'run-1',
-        'https://example.com',
-        3,
-        undefined,
-        undefined,
-      );
-    });
-    it('passes recycle through to ListingCrawlerService.start', async () => {
-      const message = {
-        runId: 'run-1',
-        baseUrl: 'https://example.com',
         recycle: true,
-      };
-      await listingController.handleListingInit(message);
-      expect(listingCrawler.start).toHaveBeenCalledWith(
-        'run-1',
-        'https://example.com',
-        undefined,
-        true,
-        undefined,
-      );
-    });
-    it('passes dispatchCount through to ListingCrawlerService.start', async () => {
-      const message = {
-        runId: 'run-1',
-        baseUrl: 'https://example.com',
         dispatchCount: 5,
       };
       await listingController.handleListingInit(message);
-      expect(listingCrawler.start).toHaveBeenCalledWith(
-        'run-1',
-        'https://example.com',
-        undefined,
-        undefined,
-        5,
-      );
+      expect(listingCrawler.start).toHaveBeenCalledWith(message);
     });
   });
   describe('handleListingPage', () => {
@@ -123,6 +90,8 @@ describe('ListingController', () => {
       const message = {
         runId: 'run-1',
         baseUrl: 'https://example.com',
+        listingMode: 'logged-in' as const,
+        detailMode: 'logged-out' as const,
         pagesVisited: 1,
         recordIds: ['1'],
         lockToken: 'token-1',
@@ -140,14 +109,17 @@ describe('ListingController', () => {
   });
   describe('handlePendingReprocess', () => {
     it('delegates to PendingReprocessService', async () => {
-      const message = { runId: 'run-2', fromRunId: 'run-1' };
+      const message = {
+        runId: 'run-2',
+        fromRunId: 'run-1',
+        detailMode: 'logged-out' as const,
+      };
       await listingController.handlePendingReprocess(message);
-      expect(pendingReprocess.run).toHaveBeenCalledWith(
-        'run-2',
-        'run-1',
-        undefined,
-        undefined,
-      );
+      expect(pendingReprocess.run).toHaveBeenCalledWith('run-2', 'run-1', {
+        detailMode: 'logged-out',
+        recycle: undefined,
+        dispatchCount: undefined,
+      });
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.pending.reprocess',
         { runId: 'run-2' },
@@ -156,38 +128,50 @@ describe('ListingController', () => {
       );
     });
     it('passes recycle through to PendingReprocessService', async () => {
-      const message = { runId: 'run-2', fromRunId: 'run-1', recycle: true };
+      const message = {
+        runId: 'run-2',
+        fromRunId: 'run-1',
+        detailMode: 'logged-in' as const,
+        recycle: true,
+      };
       await listingController.handlePendingReprocess(message);
-      expect(pendingReprocess.run).toHaveBeenCalledWith(
-        'run-2',
-        'run-1',
-        true,
-        undefined,
-      );
+      expect(pendingReprocess.run).toHaveBeenCalledWith('run-2', 'run-1', {
+        detailMode: 'logged-in',
+        recycle: true,
+      });
     });
     it('passes dispatchCount through to PendingReprocessService', async () => {
-      const message = { runId: 'run-2', fromRunId: 'run-1', dispatchCount: 5 };
+      const message = {
+        runId: 'run-2',
+        fromRunId: 'run-1',
+        detailMode: 'logged-out' as const,
+        dispatchCount: 5,
+      };
       await listingController.handlePendingReprocess(message);
-      expect(pendingReprocess.run).toHaveBeenCalledWith(
-        'run-2',
-        'run-1',
-        undefined,
-        5,
-      );
+      expect(pendingReprocess.run).toHaveBeenCalledWith('run-2', 'run-1', {
+        detailMode: 'logged-out',
+        dispatchCount: 5,
+      });
     });
   });
   describe('handleRecordsRecycle', () => {
-    it('passes dispatchCount through to RecordsRecycleService', async () => {
+    it('passes the detail mode and dispatchCount through to RecordsRecycleService', async () => {
       await listingController.handleRecordsRecycle({
         runId: 'run-1',
+        detailMode: 'logged-in',
         dispatchCount: 5,
       });
-      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1', 5);
+      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1', {
+        detailMode: 'logged-in',
+        dispatchCount: 5,
+      });
     });
     it('delegates to RecordsRecycleService', async () => {
-      const message = { runId: 'run-1' };
+      const message = { runId: 'run-1', detailMode: 'logged-out' as const };
       await listingController.handleRecordsRecycle(message);
-      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1', undefined);
+      expect(recordsRecycle.run).toHaveBeenCalledWith('run-1', {
+        detailMode: 'logged-out',
+      });
       expect(handlerRetry.runOrDeadLetter).toHaveBeenCalledWith(
         'scrape.records.recycle',
         { runId: 'run-1' },

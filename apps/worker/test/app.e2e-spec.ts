@@ -138,7 +138,10 @@ describe('WorkerModule (e2e)', () => {
       );
       await writeCatalogFile('en/99.html', '<div>99</div>');
 
-      await listingController.handleRecordsRecycle({ runId });
+      await listingController.handleRecordsRecycle({
+        runId,
+        detailMode: 'logged-out',
+      });
 
       expect(await storage.readRecycledListingIds(runId)).toEqual(['2', '3']);
       expect(await storage.read(storage.toScrapeListingIdsPath(runId))).toBe(

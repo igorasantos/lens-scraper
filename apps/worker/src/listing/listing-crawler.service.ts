@@ -1,21 +1,17 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { BrowserService } from '@app/browser';
-import { SiteService } from '@app/site';
+import { browserContextForMode, SiteService } from '@app/site';
 import { StorageService } from '@app/storage';
 import { LOCK_PORT, SESSION_LOCK_KEY, type LockPort } from '@app/redis-lock';
 import { ConfigService } from '@app/config';
-import { QueueService, type ListingPageMessage } from '@app/queue';
+import {
+  QueueService,
+  type ListingInitMessage,
+  type ListingPageMessage,
+} from '@app/queue';
 import { ListingDispatchService } from './listing-dispatch.service.js';
 import { sleep, waitUntil } from '../common/pacing.util.js';
-interface PageState {
-  runId: string;
-  baseUrl: string;
-  pagesVisited: number;
-  recordIds: string[];
-  lockToken: string;
-  recycle?: boolean;
-  dispatchCount?: number;
-}
+type PageState = Omit<ListingPageMessage, 'scheduledAt'>;
 @Injectable()
 export class ListingCrawlerService {
   private readonly logger = new Logger(ListingCrawlerService.name);
@@ -29,13 +25,16 @@ export class ListingCrawlerService {
     private readonly queue: QueueService,
     private readonly dispatch: ListingDispatchService,
   ) {}
-  async start(
-    runId: string,
-    baseUrl: string,
-    startPage = 1,
-    recycle = false,
-    dispatchCount?: number,
-  ): Promise<void> {
+  async start(message: ListingInitMessage): Promise<void> {
+    const {
+      runId,
+      baseUrl,
+      listingMode,
+      detailMode,
+      startPage = 1,
+      recycle = false,
+      dispatchCount,
+    } = message;
     const token = await this.lock.acquire(
       SESSION_LOCK_KEY,
       this.config.lockTtlMs,
@@ -45,6 +44,8 @@ export class ListingCrawlerService {
       await this.queue.publishListingInit({
         runId,
         baseUrl,
+        listingMode,
+        detailMode,
         startPage,
         recycle,
         dispatchCount,
@@ -58,13 +59,30 @@ export class ListingCrawlerService {
       this.logger.warn(
         `[${runId}] MAX_LISTING_PAGES=${this.config.maxListingPages}; nothing to crawl.`,
       );
-      await this.finish(runId, [], token, recycle, dispatchCount);
+      await this.finish({
+        runId,
+        baseUrl,
+        listingMode,
+        detailMode,
+        pagesVisited: 0,
+        recordIds: [],
+        lockToken: token,
+        recycle,
+        dispatchCount,
+      });
       return;
+    }
+    if (listingMode === 'logged-out' && startPage !== 1) {
+      this.logger.warn(
+        `[${runId}] startPage=${startPage} is ignored in logged-out listing mode; only the first listing batch is read.`,
+      );
     }
     await this.runPage({
       runId,
       baseUrl,
-      pagesVisited: startPage - 1,
+      listingMode,
+      detailMode,
+      pagesVisited: listingMode === 'logged-out' ? 0 : startPage - 1,
       recordIds: [],
       lockToken: token,
       recycle,
@@ -87,25 +105,43 @@ export class ListingCrawlerService {
   }
   private async runPage(state: PageState): Promise<void> {
     try {
-      await this.processPage(state);
+      if (state.listingMode === 'logged-out') {
+        await this.processSingleBatch(state);
+      } else {
+        await this.processPage(state);
+      }
     } catch (error) {
       await this.lock.release(SESSION_LOCK_KEY, state.lockToken);
       throw error;
     }
   }
+  private async processSingleBatch(state: PageState): Promise<void> {
+    const { runId, baseUrl, listingMode } = state;
+    const page = await this.browser.newPage({
+      kind: browserContextForMode(listingMode),
+    });
+    let recordIds: string[];
+    try {
+      this.logger.log(`[${runId}] Fetching the first listing batch`);
+      await this.browser.goto(page, baseUrl);
+      recordIds = await this.site.extractRecordIds(page, listingMode);
+    } finally {
+      await this.browser.closePage(page);
+    }
+    if (recordIds.length > 0) {
+      await this.storage.appendRawListingIds(runId, recordIds);
+    }
+    this.logger.log(
+      `[${runId}] Read ${recordIds.length} record id(s) from the first listing batch; logged-out listing mode does not paginate.`,
+    );
+    await this.finish({ ...state, recordIds });
+  }
   private async processPage(state: PageState): Promise<void> {
-    const {
-      runId,
-      baseUrl,
-      pagesVisited,
-      recordIds,
-      lockToken,
-      recycle,
-      dispatchCount,
-    } = state;
+    const { runId, baseUrl, listingMode, pagesVisited, recordIds, lockToken } =
+      state;
     const start = pagesVisited * this.site.listingPageSize;
     const page = await this.browser.newPage({
-      kind: this.site.listingBrowserContext,
+      kind: browserContextForMode(listingMode),
     });
     let pageRecordIds: string[];
     try {
@@ -116,7 +152,7 @@ export class ListingCrawlerService {
         page,
         this.site.listingScrollFocusSelector,
       );
-      pageRecordIds = await this.site.extractRecordIds(page);
+      pageRecordIds = await this.site.extractRecordIds(page, listingMode);
     } finally {
       await this.browser.closePage(page);
     }
@@ -124,7 +160,7 @@ export class ListingCrawlerService {
       this.logger.log(
         `[${runId}] Empty page at start=${start}; stopping pagination.`,
       );
-      await this.finish(runId, recordIds, lockToken, recycle, dispatchCount);
+      await this.finish(state);
       return;
     }
     await this.storage.appendRawListingIds(runId, pageRecordIds);
@@ -134,7 +170,7 @@ export class ListingCrawlerService {
       this.logger.warn(
         `[${runId}] Reached MAX_LISTING_PAGES=${this.config.maxListingPages} without hitting an empty page.`,
       );
-      await this.finish(runId, accumulated, lockToken, recycle, dispatchCount);
+      await this.finish({ ...state, recordIds: accumulated });
       return;
     }
     const delaySeconds = this.delayForPage(nextPagesVisited);
@@ -153,26 +189,19 @@ export class ListingCrawlerService {
       `[${runId}] Waiting ${delaySeconds}s before next listing page.`,
     );
     await this.queue.publishListingPage({
-      runId,
-      baseUrl,
+      ...state,
       pagesVisited: nextPagesVisited,
       recordIds: accumulated,
-      lockToken,
       scheduledAt,
-      recycle,
-      dispatchCount,
     });
   }
-  private async finish(
-    runId: string,
-    recordIds: string[],
-    lockToken: string,
-    recycle = false,
-    dispatchCount?: number,
-  ): Promise<void> {
+  private async finish(state: PageState): Promise<void> {
+    const { runId, recordIds, lockToken, detailMode, recycle, dispatchCount } =
+      state;
     try {
       await this.dispatch.dispatch(runId, recordIds, {
-        recycle,
+        detailMode,
+        recycle: recycle ?? false,
         dispatchCount,
       });
     } finally {

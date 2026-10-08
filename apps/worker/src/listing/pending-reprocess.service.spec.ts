@@ -32,24 +32,35 @@ describe('PendingReprocessService', () => {
   });
   it("reads the fromRunId's raw listing ids and hands them to dispatch under the new runId", async () => {
     const service = await buildService();
-    const result = await service.run('run-2', 'run-1');
+    const result = await service.run('run-2', 'run-1', {
+      detailMode: 'logged-out',
+    });
     expect(storage.readRawListingIds).toHaveBeenCalledWith('run-1');
     expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1', '2', '2'], {
-      recycle: false,
+      detailMode: 'logged-out',
     });
     expect(result).toEqual({ dispatched: ['1', '2'], skipped: [] });
   });
   it('forwards the recycle flag to dispatch', async () => {
     const service = await buildService();
-    await service.run('run-2', 'run-1', true);
+    await service.run('run-2', 'run-1', {
+      detailMode: 'logged-out',
+      recycle: true,
+    });
     expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1', '2', '2'], {
+      detailMode: 'logged-out',
       recycle: true,
     });
   });
   it('forwards dispatchCount to dispatch', async () => {
     const service = await buildService();
-    await service.run('run-2', 'run-1', false, 5);
+    await service.run('run-2', 'run-1', {
+      detailMode: 'logged-out',
+      recycle: false,
+      dispatchCount: 5,
+    });
     expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1', '2', '2'], {
+      detailMode: 'logged-out',
       recycle: false,
       dispatchCount: 5,
     });

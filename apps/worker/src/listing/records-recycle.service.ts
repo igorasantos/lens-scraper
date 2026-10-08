@@ -4,6 +4,7 @@ import { SiteConfigService } from '@app/site';
 import { StorageService, type RecordDetailCatalogEntry } from '@app/storage';
 import {
   ListingDispatchService,
+  type ScrapeDispatchOptions,
   type ScrapeDispatchResult,
 } from './listing-dispatch.service.js';
 export interface RecordsRecycleResult extends ScrapeDispatchResult {
@@ -22,7 +23,7 @@ export class RecordsRecycleService {
   ) {}
   async run(
     runId: string,
-    dispatchCount?: number,
+    options: ScrapeDispatchOptions,
   ): Promise<RecordsRecycleResult> {
     const recordIds = await this.storage.readListingIds(runId);
     const catalog = await this.storage.readRecordDetailCatalog();
@@ -63,7 +64,7 @@ export class RecordsRecycleService {
     const result = await this.dispatch.dispatchToScrape(
       runId,
       toScrape,
-      dispatchCount,
+      options,
     );
     return { ...result, recycled, reclassified: recycledExpired, toScrape };
   }

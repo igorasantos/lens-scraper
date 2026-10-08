@@ -33,9 +33,12 @@ describe('DetailController', () => {
     controller = module.get<DetailController>(DetailController);
   });
   it('delegates record details queueing to the service and returns its result', async () => {
-    const recordIds = ['123'];
-    const result = await controller.queueRecordDetails(recordIds);
-    expect(detailService.queueRecordDetails).toHaveBeenCalledWith(recordIds);
+    const dto = {
+      detail_mode: 'logged-out' as const,
+      records_to_reprocess: ['123'],
+    };
+    const result = await controller.queueRecordDetails(dto);
+    expect(detailService.queueRecordDetails).toHaveBeenCalledWith(dto);
     expect(result).toEqual([
       {
         recordId: '123',
@@ -45,13 +48,15 @@ describe('DetailController', () => {
     ]);
   });
   it('delegates expired records reprocessing to the service and returns its result', async () => {
-    const result = await controller.reprocessExpiredRecords();
-    expect(detailService.reprocessExpiredRecords).toHaveBeenCalledWith();
+    const dto = { detail_mode: 'logged-in' as const };
+    const result = await controller.reprocessExpiredRecords(dto);
+    expect(detailService.reprocessExpiredRecords).toHaveBeenCalledWith(dto);
     expect(result).toEqual({ runId: 'run-3', status: 'queued' });
   });
   it('delegates xx records reprocessing to the service and returns its result', async () => {
-    const result = await controller.reprocessXxRecords();
-    expect(detailService.reprocessXxRecords).toHaveBeenCalledWith();
+    const dto = { detail_mode: 'logged-out' as const };
+    const result = await controller.reprocessXxRecords(dto);
+    expect(detailService.reprocessXxRecords).toHaveBeenCalledWith(dto);
     expect(result).toEqual({ runId: 'run-3b', status: 'queued' });
   });
 });

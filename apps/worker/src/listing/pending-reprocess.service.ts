@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { StorageService } from '@app/storage';
 import {
   ListingDispatchService,
+  type ListingDispatchOptions,
   type ListingDispatchResult,
 } from './listing-dispatch.service.js';
 /* v8 ignore start */
@@ -15,10 +16,9 @@ export class PendingReprocessService {
   async run(
     runId: string,
     fromRunId: string,
-    recycle = false,
-    dispatchCount?: number,
+    options: ListingDispatchOptions,
   ): Promise<ListingDispatchResult> {
     const recordIds = await this.storage.readRawListingIds(fromRunId);
-    return this.dispatch.dispatch(runId, recordIds, { recycle, dispatchCount });
+    return this.dispatch.dispatch(runId, recordIds, options);
   }
 }

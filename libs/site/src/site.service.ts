@@ -1,11 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Node as LinkedomNode, parseHTML } from 'linkedom';
 import type { Page } from 'playwright';
-import type { BrowserContextKind } from '@app/browser';
 import {
   SiteConfigService,
   type RecordDetailSelectors,
 } from './site-config.service.js';
+import { isSessionMode, type SessionMode } from './session-mode.js';
 export type { RecordDetailSelectors } from './site-config.service.js';
 export interface RecordDetailExtractionResult {
   sectionFound: boolean;
@@ -18,6 +18,7 @@ export interface RecordDetailExtractionResult {
   isExpired: boolean;
 }
 export const RECORD_PART_ATTRIBUTE = 'data-lens-part';
+export const RECORD_MODE_ATTRIBUTE = 'data-lens-mode';
 function wrapAsHtmlDocument(bodyContent: string): string {
   return `<!DOCTYPE html>\n<html>\n<body>\n${bodyContent}\n</body>\n</html>\n`;
 }
@@ -96,22 +97,16 @@ export class SiteService {
   private readonly logger = new Logger(SiteService.name);
   constructor(private readonly siteConfig: SiteConfigService) {}
   get listingPageSize(): number {
-    return this.siteConfig.listingPageSize;
-  }
-  get listingBrowserContext(): BrowserContextKind {
-    return this.siteConfig.listingBrowserContext;
+    return this.siteConfig.loggedInListing.pageSize;
   }
   get listingScrollFocusSelector(): string {
-    return this.siteConfig.listingScrollFocusSelector;
+    return this.siteConfig.loggedInListing.scrollFocusSelector;
   }
-  get recordDetailBrowserContext(): BrowserContextKind {
-    return this.siteConfig.recordDetailBrowserContext;
+  recordDetailScrollFocusSelector(mode: SessionMode): string {
+    return this.siteConfig.detail(mode).scrollFocusSelector;
   }
-  get recordDetailScrollFocusSelector(): string {
-    return this.siteConfig.recordDetailScrollFocusSelector;
-  }
-  get hasSourceDetailPage(): boolean {
-    return Boolean(this.siteConfig.sourceDetailSelector);
+  hasSourceDetailPage(mode: SessionMode): boolean {
+    return Boolean(this.siteConfig.detail(mode).sourceDetailSelector);
   }
   parseSourceNameFromHref(href: string | null | undefined): string | null {
     if (!href) {
@@ -136,10 +131,11 @@ export class SiteService {
     url.searchParams.set('start', String(start));
     return url.toString();
   }
-  async extractRecordIds(page: Page): Promise<string[]> {
+  async extractRecordIds(page: Page, mode: SessionMode): Promise<string[]> {
+    const listing = this.siteConfig.listingSelectors(mode);
     try {
-      await page.waitForSelector(this.siteConfig.listingContainerSelector, {
-        timeout: this.siteConfig.listingContainerTimeoutMs,
+      await page.waitForSelector(listing.containerSelector, {
+        timeout: listing.containerTimeoutMs,
       });
     } catch {
       this.logger.debug(
@@ -147,49 +143,55 @@ export class SiteService {
       );
       return [];
     }
-    const cardSelector = this.siteConfig.recordCardSelector;
-    const cardIdAttribute = this.siteConfig.recordCardIdAttribute;
     const rawCardIds = await page.$$eval(
-      cardSelector,
+      listing.cardSelector,
       (cards, attribute) =>
         cards.map((card) => card.getAttribute(attribute) ?? ''),
-      cardIdAttribute,
+      listing.cardIdAttribute,
     );
-    const prefix = this.siteConfig.recordCardIdPrefix;
+    const prefix = listing.cardIdPrefix;
     return rawCardIds
       .filter((key) => key.startsWith(prefix))
       .map((key) => key.slice(prefix.length))
       .filter(Boolean);
   }
-  buildRecordDetailUrl(recordId: string): string {
-    return this.siteConfig.buildRecordDetailUrl(recordId);
+  buildRecordDetailUrl(recordId: string, mode: SessionMode): string {
+    return this.siteConfig.buildRecordDetailUrl(recordId, mode);
   }
-  isRecordDetailUrl(url: string, recordId: string): boolean {
+  isRecordDetailUrl(url: string, recordId: string, mode: SessionMode): boolean {
     try {
-      const expectedPath = new URL(this.buildRecordDetailUrl(recordId))
+      const expectedPath = new URL(this.buildRecordDetailUrl(recordId, mode))
         .pathname;
       return new URL(url).pathname.startsWith(expectedPath);
     } catch {
       return false;
     }
   }
-  buildRecordDetailSelectors(recordId: string): RecordDetailSelectors {
-    return this.siteConfig.buildRecordDetailSelectors(recordId);
+  buildRecordDetailSelectors(
+    recordId: string,
+    mode: SessionMode,
+  ): RecordDetailSelectors {
+    return this.siteConfig.buildRecordDetailSelectors(recordId, mode);
   }
   async extractRecordDetail(
     page: Page,
     recordId: string,
+    mode: SessionMode,
   ): Promise<RecordDetailExtractionResult> {
-    const selectors = this.buildRecordDetailSelectors(recordId);
+    const detail = this.siteConfig.detail(mode);
+    const selectors = this.buildRecordDetailSelectors(recordId, mode);
     const raw = await page.evaluate(
       ({
         selectors,
         headerSelector,
         sectionSelector,
+        sourceLinkSelector,
         expiredMarker,
         stripAttributes,
         stripElements,
         partAttribute,
+        modeAttribute,
+        mode,
         captureInlineSource,
       }) => {
         const section = document.querySelector(sectionSelector);
@@ -222,6 +224,7 @@ export class SiteService {
           sanitize(clone);
           if (part) {
             clone.setAttribute(partAttribute, part);
+            clone.setAttribute(modeAttribute, mode);
           }
           return clone.outerHTML;
         };
@@ -232,9 +235,12 @@ export class SiteService {
         const hasBodyContent = Boolean(bodyContent?.textContent?.trim());
         const bodyContentText =
           (bodyContent as HTMLElement | null)?.innerText ?? null;
-        const sourceAnchor = sourceContent?.matches('a')
-          ? sourceContent
-          : (sourceContent?.querySelector('a') ?? null);
+        const sourceLink = sourceLinkSelector
+          ? section.querySelector(sourceLinkSelector)
+          : sourceContent;
+        const sourceAnchor = sourceLink?.matches('a')
+          ? sourceLink
+          : (sourceLink?.querySelector('a') ?? null);
         const sourceUrl =
           (sourceAnchor as HTMLAnchorElement | null)?.href ?? null;
         const parts: [Element | null, string][] = [
@@ -267,13 +273,16 @@ export class SiteService {
       },
       {
         selectors,
-        headerSelector: this.siteConfig.recordDetailHeaderSelector,
-        sectionSelector: this.siteConfig.recordDetailSectionSelector,
-        expiredMarker: this.siteConfig.expiredRecordMarker,
+        headerSelector: detail.headerSelector,
+        sectionSelector: detail.sectionSelector,
+        sourceLinkSelector: detail.sourceLinkSelector ?? null,
+        expiredMarker: detail.expiredMarker,
         stripAttributes: this.siteConfig.sanitizeStripAttributes,
         stripElements: this.siteConfig.sanitizeStripElements,
         partAttribute: RECORD_PART_ATTRIBUTE,
-        captureInlineSource: !this.hasSourceDetailPage,
+        modeAttribute: RECORD_MODE_ATTRIBUTE,
+        mode,
+        captureInlineSource: !this.hasSourceDetailPage(mode),
       },
     );
     const sourceName = this.parseSourceNameFromHref(raw.sourceUrl);
@@ -289,14 +298,18 @@ export class SiteService {
         raw.sourceHtml !== null ? wrapAsHtmlDocument(raw.sourceHtml) : null,
     };
   }
-  async extractSourceDetail(page: Page): Promise<string | null> {
-    const selector = this.siteConfig.sourceDetailSelector;
+  async extractSourceDetail(
+    page: Page,
+    mode: SessionMode,
+  ): Promise<string | null> {
+    const detail = this.siteConfig.detail(mode);
+    const selector = detail.sourceDetailSelector;
     if (!selector) {
       return null;
     }
     try {
       await page.waitForSelector(selector, {
-        timeout: this.siteConfig.sourceDetailTimeoutMs,
+        timeout: detail.sourceDetailTimeoutMs,
       });
     } catch {
       this.logger.debug(
@@ -322,15 +335,19 @@ export class SiteService {
     recordId: string,
   ): string | null {
     const { document } = parseHTML(html);
-    const selector = this.buildRecordDetailSelectors(recordId).bodyContent;
     const element =
       document.querySelector(`[${RECORD_PART_ATTRIBUTE}="body"]`) ??
-      document.querySelector(selector);
+      document.querySelector(
+        this.buildRecordDetailSelectors(recordId, 'logged-in').bodyContent,
+      );
     return element ? innerTextOf(element) : null;
   }
   extractRecordTitleFromHtml(html: string): string | null {
     const { document } = parseHTML(html);
-    const header = document.querySelector(`[${RECORD_PART_ATTRIBUTE}]`)
+    const hasParts = Boolean(
+      document.querySelector(`[${RECORD_PART_ATTRIBUTE}]`),
+    );
+    const header = hasParts
       ? document.querySelector(`[${RECORD_PART_ATTRIBUTE}="header"]`)
       : document.body.querySelector(':scope > div');
     if (!header) {
@@ -338,11 +355,24 @@ export class SiteService {
     }
     header.querySelectorAll('a').forEach((anchor) => anchor.remove());
     const titleElement = Array.from(
-      header.querySelectorAll(this.siteConfig.recordTitleSelector),
+      header.querySelectorAll(this.titleSelectorFor(header, hasParts)),
     ).find((el) => innerTextOf(el).trim().length > 0);
     const title = (titleElement ? innerTextOf(titleElement) : '')
       .trim()
       .toLowerCase();
     return title || null;
+  }
+  private titleSelectorFor(header: Element, hasParts: boolean): string {
+    const mode = header.getAttribute(RECORD_MODE_ATTRIBUTE);
+    if (isSessionMode(mode)) {
+      return this.siteConfig.detail(mode).titleSelector;
+    }
+    if (!hasParts) {
+      return this.siteConfig.detail('logged-in').titleSelector;
+    }
+    return [
+      this.siteConfig.detail('logged-in').titleSelector,
+      this.siteConfig.detail('logged-out').titleSelector,
+    ].join(', ');
   }
 }

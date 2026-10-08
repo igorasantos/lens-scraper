@@ -5,11 +5,22 @@ import { SiteService } from '@app/site';
 import { StorageService } from '@app/storage';
 import { LOCK_PORT, SESSION_LOCK_KEY } from '@app/redis-lock';
 import { ConfigService } from '@app/config';
-import { QueueService } from '@app/queue';
+import { QueueService, type ListingInitMessage } from '@app/queue';
 import { ListingCrawlerService } from './listing-crawler.service.js';
 import { ListingDispatchService } from './listing-dispatch.service.js';
 describe('ListingCrawlerService', () => {
   const baseUrl = 'https://www.site.com/search?keywords=123';
+  function initMessage(
+    overrides: Partial<ListingInitMessage> = {},
+  ): ListingInitMessage {
+    return {
+      runId: 'run-1',
+      baseUrl,
+      listingMode: 'logged-in',
+      detailMode: 'logged-out',
+      ...overrides,
+    };
+  }
   let page: {
     goto: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
@@ -22,6 +33,7 @@ describe('ListingCrawlerService', () => {
   };
   let site: {
     listingPageSize: number;
+    listingScrollFocusSelector: string;
     buildListingPageUrl: ReturnType<typeof vi.fn>;
     extractRecordIds: ReturnType<typeof vi.fn>;
   };
@@ -75,7 +87,6 @@ describe('ListingCrawlerService', () => {
     };
     site = {
       listingPageSize: 25,
-      listingBrowserContext: 'persistent',
       listingScrollFocusSelector: '#app',
       buildListingPageUrl: vi.fn(
         (url: string, start: number) => `${url}&start=${start}`,
@@ -105,11 +116,12 @@ describe('ListingCrawlerService', () => {
     it('fetches the first page inline and publishes the second as a scheduled message', async () => {
       site.extractRecordIds.mockResolvedValue(['1', '2']);
       const service = await buildService();
-      await service.start('run-1', baseUrl);
+      await service.start(initMessage());
       expect(lock.acquire).toHaveBeenCalledWith(SESSION_LOCK_KEY, 90000);
       expect(site.buildListingPageUrl).toHaveBeenCalledWith(baseUrl, 0);
       expect(browser.newPage).toHaveBeenCalledWith({ kind: 'persistent' });
       expect(browser.scrollRandomly).toHaveBeenCalledWith(page, '#app');
+      expect(site.extractRecordIds).toHaveBeenCalledWith(page, 'logged-in');
       expect(page.goto).toHaveBeenCalledTimes(1);
       expect(page.close).toHaveBeenCalledTimes(1);
       expect(storage.appendRawListingIds).toHaveBeenCalledWith('run-1', [
@@ -121,6 +133,8 @@ describe('ListingCrawlerService', () => {
       expect(published).toMatchObject({
         runId: 'run-1',
         baseUrl,
+        listingMode: 'logged-in',
+        detailMode: 'logged-out',
         pagesVisited: 1,
         recordIds: ['1', '2'],
         lockToken: 'token-1',
@@ -132,7 +146,7 @@ describe('ListingCrawlerService', () => {
     it('starts pagination from the given startPage (1-indexed) instead of the first page', async () => {
       site.extractRecordIds.mockResolvedValue(['1', '2']);
       const service = await buildService();
-      await service.start('run-1', baseUrl, 3);
+      await service.start(initMessage({ startPage: 3 }));
       expect(site.buildListingPageUrl).toHaveBeenCalledWith(baseUrl, 50);
       const [published] = queue.publishListingPage.mock.calls[0];
       expect(published).toMatchObject({ pagesVisited: 3 });
@@ -140,24 +154,37 @@ describe('ListingCrawlerService', () => {
     it('carries the recycle flag on every published page and into dispatch', async () => {
       site.extractRecordIds.mockResolvedValue(['1']);
       const service = await buildService();
-      await service.start('run-1', baseUrl, 1, true);
+      await service.start(initMessage({ startPage: 1, recycle: true }));
       const [published] = queue.publishListingPage.mock.calls[0];
       expect(published).toMatchObject({ recycle: true });
       config.maxListingPages = 1;
-      await service.start('run-2', baseUrl, 1, true);
+      await service.start(
+        initMessage({ runId: 'run-2', startPage: 1, recycle: true }),
+      );
       expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1'], {
+        detailMode: 'logged-out',
         recycle: true,
       });
     });
     it('carries dispatchCount on every published page and into dispatch', async () => {
       site.extractRecordIds.mockResolvedValue(['1']);
       const service = await buildService();
-      await service.start('run-1', baseUrl, 1, false, 5);
+      await service.start(
+        initMessage({ startPage: 1, recycle: false, dispatchCount: 5 }),
+      );
       const [published] = queue.publishListingPage.mock.calls[0];
       expect(published).toMatchObject({ dispatchCount: 5 });
       config.maxListingPages = 1;
-      await service.start('run-2', baseUrl, 1, false, 5);
+      await service.start(
+        initMessage({
+          runId: 'run-2',
+          startPage: 1,
+          recycle: false,
+          dispatchCount: 5,
+        }),
+      );
       expect(dispatch.dispatch).toHaveBeenCalledWith('run-2', ['1'], {
+        detailMode: 'logged-out',
         recycle: false,
         dispatchCount: 5,
       });
@@ -165,8 +192,9 @@ describe('ListingCrawlerService', () => {
     it('dispatches and releases the lock immediately when the first page is already empty', async () => {
       site.extractRecordIds.mockResolvedValue([]);
       const service = await buildService();
-      await service.start('run-1', baseUrl);
+      await service.start(initMessage());
       expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', [], {
+        detailMode: 'logged-out',
         recycle: false,
       });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
@@ -176,9 +204,10 @@ describe('ListingCrawlerService', () => {
       config.maxListingPages = 1;
       site.extractRecordIds.mockResolvedValue(['1']);
       const service = await buildService();
-      await service.start('run-1', baseUrl);
+      await service.start(initMessage());
       expect(queue.publishListingPage).not.toHaveBeenCalled();
       expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1'], {
+        detailMode: 'logged-out',
         recycle: false,
       });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
@@ -186,9 +215,10 @@ describe('ListingCrawlerService', () => {
     it('dispatches immediately without touching the browser when MAX_LISTING_PAGES is 0', async () => {
       config.maxListingPages = 0;
       const service = await buildService();
-      await service.start('run-1', baseUrl);
+      await service.start(initMessage());
       expect(browser.newPage).not.toHaveBeenCalled();
       expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', [], {
+        detailMode: 'logged-out',
         recycle: false,
       });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
@@ -196,7 +226,7 @@ describe('ListingCrawlerService', () => {
     it('closes the page and releases the lock if extraction throws', async () => {
       site.extractRecordIds.mockRejectedValue(new Error('boom'));
       const service = await buildService();
-      await expect(service.start('run-1', baseUrl)).rejects.toThrow('boom');
+      await expect(service.start(initMessage())).rejects.toThrow('boom');
       expect(page.close).toHaveBeenCalledTimes(1);
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
     });
@@ -205,7 +235,9 @@ describe('ListingCrawlerService', () => {
       const service = await buildService();
       vi.useFakeTimers();
       try {
-        const done = service.start('run-1', baseUrl, 3, true);
+        const done = service.start(
+          initMessage({ startPage: 3, recycle: true }),
+        );
         await vi.advanceTimersByTimeAsync(4999);
         expect(queue.publishListingInit).not.toHaveBeenCalled();
         await vi.advanceTimersByTimeAsync(1);
@@ -216,6 +248,8 @@ describe('ListingCrawlerService', () => {
       expect(queue.publishListingInit).toHaveBeenCalledWith({
         runId: 'run-1',
         baseUrl,
+        listingMode: 'logged-in',
+        detailMode: 'logged-out',
         startPage: 3,
         recycle: true,
       });
@@ -226,14 +260,86 @@ describe('ListingCrawlerService', () => {
     it('does not requeue the init when the session lock is acquired', async () => {
       site.extractRecordIds.mockResolvedValue(['1']);
       const service = await buildService();
-      await service.start('run-1', baseUrl);
+      await service.start(initMessage());
       expect(queue.publishListingInit).not.toHaveBeenCalled();
+    });
+  });
+  describe('start in logged-out listing mode', () => {
+    it('reads only the first listing batch of the base url, in an ephemeral context, without paging, scrolling or clicking', async () => {
+      site.extractRecordIds.mockResolvedValue(['1', '2']);
+      const service = await buildService();
+      await service.start(initMessage({ listingMode: 'logged-out' }));
+      expect(browser.newPage).toHaveBeenCalledWith({ kind: 'ephemeral' });
+      expect(page.goto).toHaveBeenCalledWith(baseUrl);
+      expect(site.buildListingPageUrl).not.toHaveBeenCalled();
+      expect(browser.scrollRandomly).not.toHaveBeenCalled();
+      expect(site.extractRecordIds).toHaveBeenCalledWith(page, 'logged-out');
+      expect(page.close).toHaveBeenCalledTimes(1);
+      expect(storage.appendRawListingIds).toHaveBeenCalledWith('run-1', [
+        '1',
+        '2',
+      ]);
+      expect(queue.publishListingPage).not.toHaveBeenCalled();
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1', '2'], {
+        detailMode: 'logged-out',
+        recycle: false,
+      });
+      expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
+    });
+    it('carries the detail mode, recycle flag and dispatchCount into dispatch', async () => {
+      site.extractRecordIds.mockResolvedValue(['1']);
+      const service = await buildService();
+      await service.start(
+        initMessage({
+          listingMode: 'logged-out',
+          detailMode: 'logged-in',
+          recycle: true,
+          dispatchCount: 4,
+        }),
+      );
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1'], {
+        detailMode: 'logged-in',
+        recycle: true,
+        dispatchCount: 4,
+      });
+    });
+    it('ignores startPage and still reads the base url as given', async () => {
+      site.extractRecordIds.mockResolvedValue(['1']);
+      const service = await buildService();
+      await service.start(
+        initMessage({ listingMode: 'logged-out', startPage: 3 }),
+      );
+      expect(page.goto).toHaveBeenCalledWith(baseUrl);
+      expect(site.buildListingPageUrl).not.toHaveBeenCalled();
+    });
+    it('dispatches nothing new and skips the raw listing file when the batch is empty', async () => {
+      site.extractRecordIds.mockResolvedValue([]);
+      const service = await buildService();
+      await service.start(initMessage({ listingMode: 'logged-out' }));
+      expect(storage.appendRawListingIds).not.toHaveBeenCalled();
+      expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', [], {
+        detailMode: 'logged-out',
+        recycle: false,
+      });
+      expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
+    });
+    it('closes the page and releases the lock if extraction throws', async () => {
+      site.extractRecordIds.mockRejectedValue(new Error('boom'));
+      const service = await buildService();
+      await expect(
+        service.start(initMessage({ listingMode: 'logged-out' })),
+      ).rejects.toThrow('boom');
+      expect(page.close).toHaveBeenCalledTimes(1);
+      expect(dispatch.dispatch).not.toHaveBeenCalled();
+      expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
     });
   });
   describe('continuePage', () => {
     const baseMessage = {
       runId: 'run-1',
       baseUrl,
+      listingMode: 'logged-in' as const,
+      detailMode: 'logged-out' as const,
       pagesVisited: 1,
       recordIds: ['1', '2'],
       lockToken: 'token-1',
@@ -284,6 +390,8 @@ describe('ListingCrawlerService', () => {
       expect(published).toMatchObject({
         runId: 'run-1',
         baseUrl,
+        listingMode: 'logged-in',
+        detailMode: 'logged-out',
         pagesVisited: 2,
         recordIds: ['1', '2', '3'],
         lockToken: 'token-1',
@@ -294,6 +402,7 @@ describe('ListingCrawlerService', () => {
       const service = await buildService();
       await runContinuePage(service, baseMessage);
       expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1', '2'], {
+        detailMode: 'logged-out',
         recycle: false,
       });
       expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
@@ -303,6 +412,7 @@ describe('ListingCrawlerService', () => {
       const service = await buildService();
       await runContinuePage(service, { ...baseMessage, recycle: true });
       expect(dispatch.dispatch).toHaveBeenCalledWith('run-1', ['1', '2'], {
+        detailMode: 'logged-out',
         recycle: true,
       });
     });

@@ -15,6 +15,8 @@ http:
       {
       //   "baseUrl": ""
       //   "startPage": 1
+        "listing_mode": "logged-in",
+        "detail_mode": "logged-out",
         "recycle": true,
         "dispatchCount": {{count}}
       }

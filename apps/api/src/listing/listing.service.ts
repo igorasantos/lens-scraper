@@ -30,6 +30,8 @@ export class ListingService {
     await this.queue.publishListingInit({
       runId,
       baseUrl,
+      listingMode: dto.listing_mode,
+      detailMode: dto.detail_mode,
       startPage: dto.startPage,
       recycle: dto.recycle,
       dispatchCount: dto.dispatchCount,
@@ -38,7 +40,7 @@ export class ListingService {
   }
   async reprocessPendingRecords(
     fromRunId: string,
-    dto: PendingReprocessRequestDto = {},
+    dto: PendingReprocessRequestDto,
   ): Promise<PendingReprocessResponseDto> {
     if (!RUN_ID_PATTERN.test(fromRunId)) {
       throw new BadRequestException(
@@ -49,6 +51,7 @@ export class ListingService {
     await this.queue.publishPendingReprocess({
       runId,
       fromRunId,
+      detailMode: dto.detail_mode,
       recycle: dto.recycle,
       dispatchCount: dto.dispatchCount,
     });

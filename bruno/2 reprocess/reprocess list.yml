@@ -12,9 +12,12 @@ http:
   body:
     type: json
     data: |-
-      [
-        "{{record_id}}"
-      ]
+      {
+        "detail_mode": "logged-out",
+        "records_to_reprocess": [
+          "{{record_id}}"
+        ]
+      }
 
 runtime:
   variables:

@@ -6,39 +6,65 @@ import {
   RUN_ID_PATTERN,
 } from './pending-reprocess-request.dto.js';
 describe('PendingReprocessRequestDto', () => {
+  const modes = { detail_mode: 'logged-out' };
+  it('fails validation when detail_mode is missing or not a known mode', async () => {
+    for (const body of [{}, { detail_mode: 'anonymous' }]) {
+      const errors = await validate(
+        plainToInstance(PendingReprocessRequestDto, body),
+      );
+      expect(errors).toHaveLength(1);
+      expect(errors[0].property).toBe('detail_mode');
+      expect(errors[0].constraints).toHaveProperty('isIn');
+    }
+  });
   it('passes validation when recycle is omitted', async () => {
-    const dto = plainToInstance(PendingReprocessRequestDto, {});
+    const dto = plainToInstance(PendingReprocessRequestDto, modes);
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
   });
   it('passes validation when recycle is a boolean', async () => {
-    const dto = plainToInstance(PendingReprocessRequestDto, { recycle: false });
+    const dto = plainToInstance(PendingReprocessRequestDto, {
+      ...modes,
+      recycle: false,
+    });
     const errors = await validate(dto);
     expect(errors).toHaveLength(0);
   });
   it('fails validation when recycle is not a boolean', async () => {
-    const dto = plainToInstance(PendingReprocessRequestDto, { recycle: 1 });
+    const dto = plainToInstance(PendingReprocessRequestDto, {
+      ...modes,
+      recycle: 1,
+    });
     const errors = await validate(dto);
     expect(errors).toHaveLength(1);
     expect(errors[0].constraints).toHaveProperty('isBoolean');
   });
   it('passes validation when dispatchCount is omitted or a positive integer', async () => {
     expect(
-      await validate(plainToInstance(PendingReprocessRequestDto, {})),
+      await validate(plainToInstance(PendingReprocessRequestDto, modes)),
     ).toHaveLength(0);
     expect(
       await validate(
-        plainToInstance(PendingReprocessRequestDto, { dispatchCount: 5 }),
+        plainToInstance(PendingReprocessRequestDto, {
+          ...modes,
+          dispatchCount: 5,
+        }),
       ),
     ).toHaveLength(0);
   });
   it('fails validation when dispatchCount is 0 or not an integer', async () => {
     const zero = await validate(
-      plainToInstance(PendingReprocessRequestDto, { dispatchCount: 0 }),
+      plainToInstance(PendingReprocessRequestDto, {
+        ...modes,
+        dispatchCount: 0,
+      }),
     );
     expect(zero[0].constraints).toHaveProperty('min');
     const fractional = await validate(
-      plainToInstance(PendingReprocessRequestDto, { dispatchCount: 1.5 }),
+      plainToInstance(PendingReprocessRequestDto, {
+        ...modes,
+        dispatchCount: 1.5,
+      }),
     );
     expect(fractional[0].constraints).toHaveProperty('isInt');
   });

@@ -31,14 +31,7 @@ export class ListingController {
       SCRAPE_LISTING_INIT_TOPIC,
       { runId: message.runId },
       message,
-      () =>
-        this.listingCrawler.start(
-          message.runId,
-          message.baseUrl,
-          message.startPage,
-          message.recycle,
-          message.dispatchCount,
-        ),
+      () => this.listingCrawler.start(message),
     );
   }
   @EventPattern(SCRAPE_LISTING_PAGE_TOPIC)
@@ -63,12 +56,11 @@ export class ListingController {
       { runId: message.runId },
       message,
       () =>
-        this.pendingReprocess.run(
-          message.runId,
-          message.fromRunId,
-          message.recycle,
-          message.dispatchCount,
-        ),
+        this.pendingReprocess.run(message.runId, message.fromRunId, {
+          detailMode: message.detailMode,
+          recycle: message.recycle,
+          dispatchCount: message.dispatchCount,
+        }),
     );
   }
   @EventPattern(SCRAPE_RECORDS_RECYCLE_TOPIC)
@@ -80,7 +72,11 @@ export class ListingController {
       SCRAPE_RECORDS_RECYCLE_TOPIC,
       { runId: message.runId },
       message,
-      () => this.recordsRecycle.run(message.runId, message.dispatchCount),
+      () =>
+        this.recordsRecycle.run(message.runId, {
+          detailMode: message.detailMode,
+          dispatchCount: message.dispatchCount,
+        }),
     );
   }
 }

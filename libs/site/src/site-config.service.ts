@@ -2,39 +2,44 @@ import { Injectable } from '@nestjs/common';
 import { readFileSync } from 'node:fs';
 import Joi from 'joi';
 import { ConfigService } from '@app/config';
-import type { BrowserContextKind } from '@app/browser';
+import type { SessionMode } from './session-mode.js';
 export interface RecordDetailSelectors {
   recordFeature: string;
   bodyContent: string;
   sourceContent: string;
 }
+export interface ListingSelectorsConfig {
+  containerSelector: string;
+  containerTimeoutMs: number;
+  cardSelector: string;
+  cardIdAttribute: string;
+  cardIdPrefix: string;
+}
+export interface LoggedInListingConfig extends ListingSelectorsConfig {
+  scrollFocusSelector: string;
+  pageSize: number;
+}
+export interface DetailConfig {
+  scrollFocusSelector: string;
+  urlTemplate: string;
+  sectionSelector: string;
+  headerSelector: string;
+  titleSelector: string;
+  featureSelector: string;
+  bodySelectorTemplate: string;
+  sourceSelectorTemplate: string;
+  sourceLinkSelector?: string;
+  sourceDetailSelector?: string;
+  sourceDetailTimeoutMs: number;
+  expiredMarker: string;
+}
 export interface SiteConfig {
-  listing: {
-    browserContext: BrowserContextKind;
-    scrollFocusSelector: string;
-    pageSize: number;
-    containerSelector: string;
-    containerTimeoutMs: number;
-    cardSelector: string;
-    cardIdAttribute: string;
-    cardIdPrefix: string;
-  };
-  detail: {
-    browserContext: BrowserContextKind;
-    scrollFocusSelector: string;
-    urlTemplate: string;
-    sectionSelector: string;
-    headerSelector: string;
-    titleSelector: string;
-    featureSelector: string;
-    bodySelectorTemplate: string;
-    sourceSelectorTemplate: string;
-    expiredMarker: string;
-  };
+  listing_logged_in: LoggedInListingConfig;
+  listing_logged_out: ListingSelectorsConfig;
+  detail_logged_in: DetailConfig;
+  detail_logged_out: DetailConfig;
   source: {
     urlPrefix: string;
-    detailSelector?: string;
-    detailTimeoutMs: number;
   };
   auth?: {
     loginUrl: string;
@@ -67,36 +72,38 @@ export interface SiteConfig {
     deadLetterPayloadsFilenameTemplate: string;
   };
 }
-const browserContextSchema = Joi.string()
-  .valid('persistent', 'ephemeral')
-  .default('persistent');
+const listingSelectorsSchema = {
+  containerSelector: Joi.string().required(),
+  containerTimeoutMs: Joi.number().integer().positive().required(),
+  cardSelector: Joi.string().required(),
+  cardIdAttribute: Joi.string().required(),
+  cardIdPrefix: Joi.string().required(),
+};
+const detailSchema = Joi.object({
+  scrollFocusSelector: Joi.string().required(),
+  urlTemplate: Joi.string().required(),
+  sectionSelector: Joi.string().required(),
+  headerSelector: Joi.string().required(),
+  titleSelector: Joi.string().required(),
+  featureSelector: Joi.string().required(),
+  bodySelectorTemplate: Joi.string().required(),
+  sourceSelectorTemplate: Joi.string().required(),
+  sourceLinkSelector: Joi.string().optional(),
+  sourceDetailSelector: Joi.string().optional(),
+  sourceDetailTimeoutMs: Joi.number().integer().positive().default(10000),
+  expiredMarker: Joi.string().required(),
+}).required();
 const siteConfigSchema = Joi.object<SiteConfig>({
-  listing: Joi.object({
-    browserContext: browserContextSchema,
+  listing_logged_in: Joi.object({
+    ...listingSelectorsSchema,
     scrollFocusSelector: Joi.string().required(),
     pageSize: Joi.number().integer().positive().required(),
-    containerSelector: Joi.string().required(),
-    containerTimeoutMs: Joi.number().integer().positive().required(),
-    cardSelector: Joi.string().required(),
-    cardIdAttribute: Joi.string().required(),
-    cardIdPrefix: Joi.string().required(),
   }).required(),
-  detail: Joi.object({
-    browserContext: browserContextSchema,
-    scrollFocusSelector: Joi.string().required(),
-    urlTemplate: Joi.string().required(),
-    sectionSelector: Joi.string().required(),
-    headerSelector: Joi.string().required(),
-    titleSelector: Joi.string().required(),
-    featureSelector: Joi.string().required(),
-    bodySelectorTemplate: Joi.string().required(),
-    sourceSelectorTemplate: Joi.string().required(),
-    expiredMarker: Joi.string().required(),
-  }).required(),
+  listing_logged_out: Joi.object(listingSelectorsSchema).required(),
+  detail_logged_in: detailSchema,
+  detail_logged_out: detailSchema,
   source: Joi.object({
     urlPrefix: Joi.string().required(),
-    detailSelector: Joi.string().optional(),
-    detailTimeoutMs: Joi.number().integer().positive().default(10000),
   }).required(),
   auth: Joi.object({
     loginUrl: Joi.string().required(),
@@ -151,56 +158,21 @@ export class SiteConfigService {
   constructor(config: ConfigService) {
     this.config = loadSiteConfig(config.siteConfigPath);
   }
-  get listingBrowserContext(): BrowserContextKind {
-    return this.config.listing.browserContext;
+  get loggedInListing(): LoggedInListingConfig {
+    return this.config.listing_logged_in;
   }
-  get listingScrollFocusSelector(): string {
-    return this.config.listing.scrollFocusSelector;
+  listingSelectors(mode: SessionMode): ListingSelectorsConfig {
+    return mode === 'logged-in'
+      ? this.config.listing_logged_in
+      : this.config.listing_logged_out;
   }
-  get listingPageSize(): number {
-    return this.config.listing.pageSize;
-  }
-  get listingContainerSelector(): string {
-    return this.config.listing.containerSelector;
-  }
-  get listingContainerTimeoutMs(): number {
-    return this.config.listing.containerTimeoutMs;
-  }
-  get recordCardSelector(): string {
-    return this.config.listing.cardSelector;
-  }
-  get recordCardIdAttribute(): string {
-    return this.config.listing.cardIdAttribute;
-  }
-  get recordCardIdPrefix(): string {
-    return this.config.listing.cardIdPrefix;
-  }
-  get recordDetailBrowserContext(): BrowserContextKind {
-    return this.config.detail.browserContext;
-  }
-  get recordDetailScrollFocusSelector(): string {
-    return this.config.detail.scrollFocusSelector;
-  }
-  get recordDetailSectionSelector(): string {
-    return this.config.detail.sectionSelector;
-  }
-  get recordDetailHeaderSelector(): string {
-    return this.config.detail.headerSelector;
-  }
-  get recordTitleSelector(): string {
-    return this.config.detail.titleSelector;
-  }
-  get expiredRecordMarker(): string {
-    return this.config.detail.expiredMarker;
+  detail(mode: SessionMode): DetailConfig {
+    return mode === 'logged-in'
+      ? this.config.detail_logged_in
+      : this.config.detail_logged_out;
   }
   get sourceUrlPrefix(): string {
     return this.config.source.urlPrefix;
-  }
-  get sourceDetailSelector(): string | undefined {
-    return this.config.source.detailSelector;
-  }
-  get sourceDetailTimeoutMs(): number {
-    return this.config.source.detailTimeoutMs;
   }
   get loginUrl(): string | undefined {
     return this.config.auth?.loginUrl;
@@ -288,20 +260,18 @@ export class SiteConfigService {
       topic,
     );
   }
-  buildRecordDetailUrl(recordId: string): string {
-    return fillTemplate(this.config.detail.urlTemplate, recordId);
+  buildRecordDetailUrl(recordId: string, mode: SessionMode): string {
+    return fillTemplate(this.detail(mode).urlTemplate, recordId);
   }
-  buildRecordDetailSelectors(recordId: string): RecordDetailSelectors {
+  buildRecordDetailSelectors(
+    recordId: string,
+    mode: SessionMode,
+  ): RecordDetailSelectors {
+    const detail = this.detail(mode);
     return {
-      recordFeature: fillTemplate(this.config.detail.featureSelector, recordId),
-      bodyContent: fillTemplate(
-        this.config.detail.bodySelectorTemplate,
-        recordId,
-      ),
-      sourceContent: fillTemplate(
-        this.config.detail.sourceSelectorTemplate,
-        recordId,
-      ),
+      recordFeature: fillTemplate(detail.featureSelector, recordId),
+      bodyContent: fillTemplate(detail.bodySelectorTemplate, recordId),
+      sourceContent: fillTemplate(detail.sourceSelectorTemplate, recordId),
     };
   }
 }

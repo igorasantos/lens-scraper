@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { stampScheduledAt, QueueService } from '@app/queue';
+import type { SessionMode } from '@app/site';
 import { StorageService } from '@app/storage';
 export interface ExpiredReprocessResult {
   reprocessed: string[];
@@ -13,7 +14,10 @@ export class ExpiredReprocessService {
     private readonly storage: StorageService,
     private readonly queue: QueueService,
   ) {}
-  async run(runId: string): Promise<ExpiredReprocessResult> {
+  async run(
+    runId: string,
+    detailMode: SessionMode,
+  ): Promise<ExpiredReprocessResult> {
     const recordIds = await this.storage.readExpiredRecordIds();
     if (recordIds.length === 0) {
       this.logger.log(`[${runId}] No expired record ids to reprocess.`);
@@ -21,7 +25,7 @@ export class ExpiredReprocessService {
     }
     const scheduled = stampScheduledAt(recordIds);
     await this.queue.publishRecordDetailsBatch(
-      scheduled.map((entry) => ({ ...entry, runId })),
+      scheduled.map((entry) => ({ ...entry, runId, detailMode })),
     );
     this.logger.log(
       `[${runId}] Reprocessing ${scheduled.length} expired record(s).`,

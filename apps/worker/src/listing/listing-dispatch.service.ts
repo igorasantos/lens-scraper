@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@app/config';
 import { stampScheduledAt, QueueService } from '@app/queue';
+import type { SessionMode } from '@app/site';
 import { StorageService } from '@app/storage';
 export interface ScrapeDispatchResult {
   dispatched: string[];
@@ -9,9 +10,12 @@ export interface ScrapeDispatchResult {
 export interface ListingDispatchResult extends ScrapeDispatchResult {
   skipped: string[];
 }
-export interface ListingDispatchOptions {
-  recycle?: boolean;
+export interface ScrapeDispatchOptions {
+  detailMode: SessionMode;
   dispatchCount?: number;
+}
+export interface ListingDispatchOptions extends ScrapeDispatchOptions {
+  recycle?: boolean;
 }
 @Injectable()
 export class ListingDispatchService {
@@ -24,7 +28,7 @@ export class ListingDispatchService {
   async dispatch(
     runId: string,
     recordIds: string[],
-    { recycle = false, dispatchCount }: ListingDispatchOptions = {},
+    { detailMode, recycle = false, dispatchCount }: ListingDispatchOptions,
   ): Promise<ListingDispatchResult> {
     const existing = await this.storage.readRecordIds();
     const uniqueRecordIds = [...new Set(recordIds)];
@@ -47,7 +51,11 @@ export class ListingDispatchService {
     }
     if (recycle) {
       await this.storage.writeListingIds(runId, toDispatch);
-      await this.queue.publishRecordsRecycle({ runId, dispatchCount });
+      await this.queue.publishRecordsRecycle({
+        runId,
+        detailMode,
+        dispatchCount,
+      });
       this.logger.log(
         `[${runId}] ${countMessage} = ${toDispatch.length} record(s) handed to recycling before scraping.`,
       );
@@ -56,17 +64,16 @@ export class ListingDispatchService {
     this.logger.log(
       `[${runId}] ${countMessage} = ${toDispatch.length} record(s) left to dispatch.`,
     );
-    const result = await this.dispatchToScrape(
-      runId,
-      toDispatch,
+    const result = await this.dispatchToScrape(runId, toDispatch, {
+      detailMode,
       dispatchCount,
-    );
+    });
     return { ...result, skipped };
   }
   async dispatchToScrape(
     runId: string,
     recordIds: string[],
-    dispatchCount?: number,
+    { detailMode, dispatchCount }: ScrapeDispatchOptions,
   ): Promise<ScrapeDispatchResult> {
     const limit = dispatchCount ?? this.config.maxRecordExtractions;
     const toScrape = recordIds.slice(0, limit);
@@ -75,7 +82,7 @@ export class ListingDispatchService {
     if (toScrape.length > 0) {
       const scheduled = stampScheduledAt(toScrape);
       await this.queue.publishRecordDetailsBatch(
-        scheduled.map((entry) => ({ ...entry, runId })),
+        scheduled.map((entry) => ({ ...entry, runId, detailMode })),
       );
       dispatched = scheduled.map((entry) => entry.recordId);
     }

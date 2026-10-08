@@ -42,7 +42,7 @@ export class DetailController {
       SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC,
       { runId: message.runId },
       message,
-      () => this.expiredReprocess.run(message.runId),
+      () => this.expiredReprocess.run(message.runId, message.detailMode),
     );
   }
   @EventPattern(SCRAPE_RECORDS_XX_REPROCESS_TOPIC)
@@ -54,7 +54,7 @@ export class DetailController {
       SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
       { runId: message.runId },
       message,
-      () => this.xxReprocess.run(message.runId),
+      () => this.xxReprocess.run(message.runId, message.detailMode),
     );
   }
 }

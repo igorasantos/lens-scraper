@@ -26,14 +26,18 @@ describe('ListingController', () => {
     controller = module.get<ListingController>(ListingController);
   });
   it('delegates listing init to the service and returns its result', async () => {
-    const dto = { baseUrl: 'https://example.com' };
+    const dto = {
+      listing_mode: 'logged-out' as const,
+      detail_mode: 'logged-out' as const,
+      baseUrl: 'https://example.com',
+    };
     const result = await controller.initListing(dto);
     expect(listingService.initListing).toHaveBeenCalledWith(dto);
     expect(result).toEqual({ runId: 'run-1', status: 'queued' });
   });
   it('delegates pending reprocess to the service and returns its result', async () => {
     const fromRunId = '11111111-1111-4111-8111-111111111111';
-    const dto = { recycle: true };
+    const dto = { detail_mode: 'logged-in' as const, recycle: true };
     const result = await controller.reprocessPendingRecords(fromRunId, dto);
     expect(listingService.reprocessPendingRecords).toHaveBeenCalledWith(
       fromRunId,

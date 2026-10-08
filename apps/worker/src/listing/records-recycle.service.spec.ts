@@ -67,7 +67,7 @@ describe('RecordsRecycleService', () => {
   });
   it("splits the run's listing ids into recycled (found in the catalog) and to-scrape, and dispatches only the latter", async () => {
     const service = await buildService();
-    const result = await service.run('run-1');
+    const result = await service.run('run-1', { detailMode: 'logged-out' });
     expect(storage.readListingIds).toHaveBeenCalledWith('run-1');
     expect(storage.appendRecordId).toHaveBeenCalledWith('2', 'pt');
     expect(storage.appendRecycledListingId).toHaveBeenCalledWith('run-1', '2');
@@ -80,7 +80,11 @@ describe('RecordsRecycleService', () => {
       '1',
       '3',
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3'], undefined);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith(
+      'run-1',
+      ['1', '3'],
+      { detailMode: 'logged-out' },
+    );
     expect(result).toEqual({
       recycled: ['2'],
       toScrape: ['1', '3'],
@@ -102,7 +106,7 @@ describe('RecordsRecycleService', () => {
       callOrder.push('recycleRecordDetail');
     });
     const service = await buildService();
-    await service.run('run-1');
+    await service.run('run-1', { detailMode: 'logged-out' });
     expect(callOrder).toEqual([
       'appendRecordId',
       'appendRecycledListingId',
@@ -116,7 +120,7 @@ describe('RecordsRecycleService', () => {
       }),
     );
     const service = await buildService();
-    const result = await service.run('run-1');
+    const result = await service.run('run-1', { detailMode: 'logged-out' });
     expect(storage.appendRecordId).not.toHaveBeenCalled();
     expect(storage.appendRecycledListingId).toHaveBeenCalledWith('run-1', '2');
     expect(storage.recycleRecordDetail).toHaveBeenCalledTimes(1);
@@ -127,7 +131,11 @@ describe('RecordsRecycleService', () => {
     expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
       { runId: 'run-1', recordId: '2' },
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3'], undefined);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith(
+      'run-1',
+      ['1', '3'],
+      { detailMode: 'logged-out' },
+    );
     expect(result.recycled).toEqual(['2']);
     expect(result.reclassified).toEqual(['2']);
   });
@@ -145,7 +153,7 @@ describe('RecordsRecycleService', () => {
       callOrder.push('publishRecordLanguageClassifyBatch');
     });
     const service = await buildService();
-    await service.run('run-1');
+    await service.run('run-1', { detailMode: 'logged-out' });
     expect(callOrder).toEqual([
       'recycleRecordDetail',
       'publishRecordLanguageClassifyBatch',
@@ -158,12 +166,16 @@ describe('RecordsRecycleService', () => {
       Promise.resolve(id === '2'),
     );
     const service = await buildService();
-    const result = await service.run('run-1');
+    const result = await service.run('run-1', { detailMode: 'logged-out' });
     expect(storage.recycleRecordDetail).not.toHaveBeenCalled();
     expect(queue.publishRecordLanguageClassifyBatch).toHaveBeenCalledWith([
       { runId: 'run-1', recordId: '2' },
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['1', '3'], undefined);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith(
+      'run-1',
+      ['1', '3'],
+      { detailMode: 'logged-out' },
+    );
     expect(result.recycled).toEqual(['2']);
     expect(result.reclassified).toEqual(['2']);
   });
@@ -175,33 +187,44 @@ describe('RecordsRecycleService', () => {
       }),
     );
     const service = await buildService();
-    const result = await service.run('run-1');
+    const result = await service.run('run-1', { detailMode: 'logged-out' });
     expect(storage.appendRecycledListingId).not.toHaveBeenCalled();
     expect(storage.recycleRecordDetail).toHaveBeenCalledTimes(1);
     expect(storage.writeToScrapeListingIds).toHaveBeenCalledWith('run-1', [
       '3',
     ]);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['3'], undefined);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['3'], {
+      detailMode: 'logged-out',
+    });
     expect(result.recycled).toEqual(['1', '2']);
     expect(result.toScrape).toEqual(['3']);
   });
   it('writes an empty to-scrape file and dispatches nothing when every id is recycled', async () => {
     storage.readListingIds.mockResolvedValue(['2']);
     const service = await buildService();
-    await service.run('run-1');
+    await service.run('run-1', { detailMode: 'logged-out' });
     expect(storage.writeToScrapeListingIds).toHaveBeenCalledWith('run-1', []);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', [], undefined);
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', [], {
+      detailMode: 'logged-out',
+    });
   });
-  it('forwards dispatchCount to dispatchToScrape', async () => {
+  it('forwards the detail mode and dispatchCount to dispatchToScrape', async () => {
     storage.readListingIds.mockResolvedValue(['3']);
     const service = await buildService();
-    await service.run('run-1', 5);
-    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['3'], 5);
+    await service.run('run-1', { detailMode: 'logged-in', dispatchCount: 5 });
+    expect(dispatch.dispatchToScrape).toHaveBeenCalledWith('run-1', ['3'], {
+      detailMode: 'logged-in',
+      dispatchCount: 5,
+    });
   });
   it('propagates a missing listing_ids_new.txt without touching the catalog', async () => {
-    storage.readListingIds.mockRejectedValue(new Error('No listing_ids_new.txt'));
+    storage.readListingIds.mockRejectedValue(
+      new Error('No listing_ids_new.txt'),
+    );
     const service = await buildService();
-    await expect(service.run('run-1')).rejects.toThrow('No listing_ids_new.txt');
+    await expect(
+      service.run('run-1', { detailMode: 'logged-out' }),
+    ).rejects.toThrow('No listing_ids_new.txt');
     expect(storage.readRecordDetailCatalog).not.toHaveBeenCalled();
     expect(dispatch.dispatchToScrape).not.toHaveBeenCalled();
   });

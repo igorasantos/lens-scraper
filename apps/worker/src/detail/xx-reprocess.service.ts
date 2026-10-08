@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { stampScheduledAt, QueueService } from '@app/queue';
+import type { SessionMode } from '@app/site';
 import { StorageService } from '@app/storage';
 export interface XxReprocessResult {
   reprocessed: string[];
@@ -13,7 +14,10 @@ export class XxReprocessService {
     private readonly storage: StorageService,
     private readonly queue: QueueService,
   ) {}
-  async run(runId: string): Promise<XxReprocessResult> {
+  async run(
+    runId: string,
+    detailMode: SessionMode,
+  ): Promise<XxReprocessResult> {
     const recordIds = await this.storage.readUnknownLanguageRecordIds();
     if (recordIds.length === 0) {
       this.logger.log(
@@ -23,7 +27,7 @@ export class XxReprocessService {
     }
     const scheduled = stampScheduledAt(recordIds);
     await this.queue.publishRecordDetailsBatch(
-      scheduled.map((entry) => ({ ...entry, runId })),
+      scheduled.map((entry) => ({ ...entry, runId, detailMode })),
     );
     this.logger.log(
       `[${runId}] Reprocessing ${scheduled.length} unknown-language record(s).`,

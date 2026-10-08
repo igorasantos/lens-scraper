@@ -1,13 +1,7 @@
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  ParseArrayPipe,
-  Post,
-} from '@nestjs/common';
-import { ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import type { RecordDetailsRequestDto } from './dto/record-details-request.dto.js';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { DetailModeRequestDto } from '../common/detail-mode-request.dto.js';
+import { RecordDetailsRequestDto } from './dto/record-details-request.dto.js';
 import { RecordDetailsResponseDto } from './dto/record-details-response.dto.js';
 import { ExpiredReprocessResponseDto } from './dto/expired-reprocess-response.dto.js';
 import { XxReprocessResponseDto } from './dto/xx-reprocess-response.dto.js';
@@ -20,24 +14,29 @@ export class DetailController {
   constructor(private readonly detailService: DetailService) {}
   @Post('records/details')
   @HttpCode(HttpStatus.ACCEPTED)
-  @ApiBody({ type: [String] })
   @ApiOkResponse({ type: [RecordDetailsResponseDto] })
   queueRecordDetails(
-    @Body(new ParseArrayPipe({ items: String }))
-    recordIds: RecordDetailsRequestDto,
+    @Body()
+    dto: RecordDetailsRequestDto,
   ): Promise<RecordDetailsResponseDto[]> {
-    return this.detailService.queueRecordDetails(recordIds);
+    return this.detailService.queueRecordDetails(dto);
   }
   @Post('records/expired/reprocess')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOkResponse({ type: ExpiredReprocessResponseDto })
-  reprocessExpiredRecords(): Promise<ExpiredReprocessResponseDto> {
-    return this.detailService.reprocessExpiredRecords();
+  reprocessExpiredRecords(
+    @Body()
+    dto: DetailModeRequestDto,
+  ): Promise<ExpiredReprocessResponseDto> {
+    return this.detailService.reprocessExpiredRecords(dto);
   }
   @Post('records/xx/reprocess')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOkResponse({ type: XxReprocessResponseDto })
-  reprocessXxRecords(): Promise<XxReprocessResponseDto> {
-    return this.detailService.reprocessXxRecords();
+  reprocessXxRecords(
+    @Body()
+    dto: DetailModeRequestDto,
+  ): Promise<XxReprocessResponseDto> {
+    return this.detailService.reprocessXxRecords(dto);
   }
 }

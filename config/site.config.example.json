@@ -1,6 +1,5 @@
 {
-  "listing": {
-    "browserContext": "persistent",
+  "listing_logged_in": {
     "scrollFocusSelector": "#app",
     "pageSize": 25,
     "containerSelector": "container",
@@ -9,8 +8,14 @@
     "cardIdAttribute": "data-card-id",
     "cardIdPrefix": "card-"
   },
-  "detail": {
-    "browserContext": "persistent",
+  "listing_logged_out": {
+    "containerSelector": "container",
+    "containerTimeoutMs": 10000,
+    "cardSelector": "container .card",
+    "cardIdAttribute": "card",
+    "cardIdPrefix": "data-card-id"
+  },
+  "detail_logged_in": {
     "scrollFocusSelector": "#app",
     "urlTemplate": "https://example.com/{id}",
     "sectionSelector": "section",
@@ -19,6 +24,19 @@
     "featureSelector": "feature",
     "bodySelectorTemplate": "body",
     "sourceSelectorTemplate": "source",
+    "expiredMarker": "not available"
+  },
+  "detail_logged_out": {
+    "scrollFocusSelector": "body",
+    "urlTemplate": "https://example.com/{id}",
+    "sectionSelector": "section",
+    "headerSelector": "header",
+    "titleSelector": "h1",
+    "featureSelector": "feature",
+    "bodySelectorTemplate": "body",
+    "sourceSelectorTemplate": "source",
+    "sourceDetailSelector": ".source-detail",
+    "sourceDetailTimeoutMs": 10000,
     "expiredMarker": "not available"
   },
   "source": {

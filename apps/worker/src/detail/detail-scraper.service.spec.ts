@@ -36,9 +36,8 @@ describe('DetailScraperService', () => {
     close: ReturnType<typeof vi.fn>;
   };
   let site: {
-    recordDetailBrowserContext: string;
-    recordDetailScrollFocusSelector: string;
-    hasSourceDetailPage: boolean;
+    recordDetailScrollFocusSelector: ReturnType<typeof vi.fn>;
+    hasSourceDetailPage: ReturnType<typeof vi.fn>;
     buildRecordDetailUrl: ReturnType<typeof vi.fn>;
     isRecordDetailUrl: ReturnType<typeof vi.fn>;
     extractRecordDetail: ReturnType<typeof vi.fn>;
@@ -113,9 +112,8 @@ describe('DetailScraperService', () => {
       close: vi.fn().mockResolvedValue(undefined),
     };
     site = {
-      recordDetailBrowserContext: 'ephemeral',
-      recordDetailScrollFocusSelector: '#app',
-      hasSourceDetailPage: false,
+      recordDetailScrollFocusSelector: vi.fn().mockReturnValue('#app'),
+      hasSourceDetailPage: vi.fn().mockReturnValue(false),
       buildRecordDetailUrl: vi.fn(
         (recordId: string) => `https://www.site.com/${recordId}`,
       ),
@@ -165,14 +163,24 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
     expect(lock.acquire).toHaveBeenCalledWith(SESSION_LOCK_KEY, 90000);
     expect(browser.newPage).toHaveBeenCalledWith({ kind: 'ephemeral' });
+    expect(site.buildRecordDetailUrl).toHaveBeenCalledWith('123', 'logged-out');
+    expect(site.recordDetailScrollFocusSelector).toHaveBeenCalledWith(
+      'logged-out',
+    );
     expect(browser.scrollRandomly).toHaveBeenCalledWith(page, '#app');
     expect(page.goto).toHaveBeenCalledWith('https://www.site.com/123');
     expect(site.extractRecordDetail).toHaveBeenCalledTimes(1);
+    expect(site.extractRecordDetail).toHaveBeenCalledWith(
+      page,
+      '123',
+      'logged-out',
+    );
     expect(storage.writeRecordDetail).toHaveBeenCalledWith(
       'en',
       '123',
@@ -207,6 +215,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-2',
     });
@@ -233,6 +242,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-3',
     });
@@ -257,6 +267,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -274,6 +285,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -306,6 +318,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -331,6 +344,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -350,6 +364,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -367,6 +382,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -399,6 +415,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -434,6 +451,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -457,6 +475,7 @@ describe('DetailScraperService', () => {
     await expect(
       service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       }),
@@ -476,6 +495,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -500,12 +520,14 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
     expect(site.isRecordDetailUrl).toHaveBeenCalledWith(
       'https://www.site.com/',
       '123',
+      'logged-out',
     );
     expect(browser.scrollRandomly).not.toHaveBeenCalled();
     expect(site.extractRecordDetail).not.toHaveBeenCalled();
@@ -541,6 +563,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -566,6 +589,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -592,6 +616,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -614,6 +639,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -631,6 +657,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -645,7 +672,11 @@ describe('DetailScraperService', () => {
       sourceHtml: null,
     });
     const service = await buildService();
-    await service.handle({ recordId: '123', scheduledAt: pastScheduledAt });
+    await service.handle({
+      recordId: '123',
+      detailMode: 'logged-out',
+      scheduledAt: pastScheduledAt,
+    });
     expect(storage.writeRecordDetail).toHaveBeenCalledWith(
       'xx',
       '123',
@@ -668,6 +699,7 @@ describe('DetailScraperService', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
     const done = service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -693,6 +725,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: futureScheduledAt,
       runId: 'run-1',
     });
@@ -707,6 +740,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     const message = {
       recordId: '123',
+      detailMode: 'logged-out' as const,
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     };
@@ -729,6 +763,7 @@ describe('DetailScraperService', () => {
     const service = await buildService();
     await service.handle({
       recordId: '123',
+      detailMode: 'logged-out',
       scheduledAt: pastScheduledAt,
       runId: 'run-1',
     });
@@ -740,12 +775,50 @@ describe('DetailScraperService', () => {
     await expect(
       service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       }),
     ).rejects.toThrow('boom');
     expect(page.close).toHaveBeenCalledTimes(1);
     expect(lock.release).toHaveBeenCalledWith(SESSION_LOCK_KEY, 'token-1');
+  });
+  it('scrapes in the persistent context, with the logged-in detail settings, when the message asks for logged-in mode', async () => {
+    site.extractRecordDetail.mockResolvedValue({
+      sectionFound: true,
+      hasBodyContent: true,
+      html: '<div>ok</div>',
+      bodyContentText:
+        'Our platform focuses on distributed systems and scalable APIs, with new capabilities rolling out this quarter.',
+      sourceName: 'source-alpha',
+      sourceUrl: 'https://www.site.com/source/source-alpha',
+      sourceHtml: '<div>about source</div>',
+      isExpired: false,
+    });
+    const service = await buildService();
+    await service.handle({
+      recordId: '123',
+      detailMode: 'logged-in',
+      scheduledAt: pastScheduledAt,
+      runId: 'run-1',
+    });
+    expect(browser.newPage).toHaveBeenCalledTimes(1);
+    expect(browser.newPage).toHaveBeenCalledWith({ kind: 'persistent' });
+    expect(site.buildRecordDetailUrl).toHaveBeenCalledWith('123', 'logged-in');
+    expect(site.recordDetailScrollFocusSelector).toHaveBeenCalledWith(
+      'logged-in',
+    );
+    expect(site.extractRecordDetail).toHaveBeenCalledWith(
+      page,
+      '123',
+      'logged-in',
+    );
+    expect(site.hasSourceDetailPage).toHaveBeenCalledWith('logged-in');
+    expect(site.extractSourceDetail).not.toHaveBeenCalled();
+    expect(storage.writeSourceDetail).toHaveBeenCalledWith(
+      'source-alpha',
+      '<div>about source</div>',
+    );
   });
   describe('when the source content lives on its own detail page', () => {
     const extracted = {
@@ -760,7 +833,7 @@ describe('DetailScraperService', () => {
       isExpired: false,
     };
     beforeEach(() => {
-      site.hasSourceDetailPage = true;
+      site.hasSourceDetailPage.mockReturnValue(true);
       site.extractRecordDetail.mockResolvedValue(extracted);
       browser.newPage
         .mockResolvedValueOnce(page as unknown as Page)
@@ -770,6 +843,7 @@ describe('DetailScraperService', () => {
       const service = await buildService();
       await service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       });
@@ -779,7 +853,11 @@ describe('DetailScraperService', () => {
         'https://www.site.com/source/source-alpha?ref=1',
         { referer: 'https://www.site.com/123' },
       );
-      expect(site.extractSourceDetail).toHaveBeenCalledWith(sourcePage);
+      expect(site.extractSourceDetail).toHaveBeenCalledWith(
+        sourcePage,
+        'logged-out',
+      );
+      expect(site.hasSourceDetailPage).toHaveBeenCalledWith('logged-out');
       expect(sourcePage.close).toHaveBeenCalledTimes(1);
       expect(page.close).toHaveBeenCalledTimes(1);
       expect(storage.appendSourceName).toHaveBeenCalledWith('source-alpha');
@@ -795,6 +873,7 @@ describe('DetailScraperService', () => {
       const service = await buildService();
       await service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       });
@@ -812,6 +891,7 @@ describe('DetailScraperService', () => {
       const service = await buildService();
       await service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       });
@@ -827,6 +907,7 @@ describe('DetailScraperService', () => {
       const service = await buildService();
       await service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       });
@@ -838,6 +919,7 @@ describe('DetailScraperService', () => {
       const service = await buildService();
       await service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       });
@@ -859,6 +941,7 @@ describe('DetailScraperService', () => {
       const service = await buildService();
       await service.handle({
         recordId: '123',
+        detailMode: 'logged-out',
         scheduledAt: pastScheduledAt,
         runId: 'run-1',
       });
@@ -877,6 +960,7 @@ describe('DetailScraperService', () => {
       await expect(
         service.handle({
           recordId: '123',
+          detailMode: 'logged-out',
           scheduledAt: pastScheduledAt,
           runId: 'run-1',
         }),

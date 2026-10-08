@@ -33,7 +33,12 @@ describe('QueueService', () => {
     expect(service).toBeDefined();
   });
   it('publishes a listing init message to the listing topic', async () => {
-    const message = { runId: 'run-1', baseUrl: 'https://example.com' };
+    const message = {
+      runId: 'run-1',
+      baseUrl: 'https://example.com',
+      listingMode: 'logged-in' as const,
+      detailMode: 'logged-out' as const,
+    };
     await service.publishListingInit(message);
     expect(queuePort.publish).toHaveBeenCalledWith(
       SCRAPE_LISTING_INIT_TOPIC,
@@ -41,7 +46,11 @@ describe('QueueService', () => {
     );
   });
   it('publishes a pending reprocess message to the pending reprocess topic', async () => {
-    const message = { runId: 'run-2', fromRunId: 'run-1' };
+    const message = {
+      runId: 'run-2',
+      fromRunId: 'run-1',
+      detailMode: 'logged-out' as const,
+    };
     await service.publishPendingReprocess(message);
     expect(queuePort.publish).toHaveBeenCalledWith(
       SCRAPE_RECORDS_PENDING_REPROCESS_TOPIC,
@@ -52,6 +61,8 @@ describe('QueueService', () => {
     const message = {
       runId: 'run-1',
       baseUrl: 'https://example.com',
+      listingMode: 'logged-in' as const,
+      detailMode: 'logged-out' as const,
       pagesVisited: 1,
       recordIds: ['1', '2'],
       lockToken: 'token-1',
@@ -64,7 +75,7 @@ describe('QueueService', () => {
     );
   });
   it('publishes a records recycle message to the records recycle topic', async () => {
-    const message = { runId: 'run-1' };
+    const message = { runId: 'run-1', detailMode: 'logged-out' as const };
     await service.publishRecordsRecycle(message);
     expect(queuePort.publish).toHaveBeenCalledWith(
       SCRAPE_RECORDS_RECYCLE_TOPIC,
@@ -73,8 +84,16 @@ describe('QueueService', () => {
   });
   it('publishes a batch of record detail messages, one publish call per message', async () => {
     const messages = [
-      { recordId: '1', scheduledAt: '2026-01-01T00:00:00.000Z' },
-      { recordId: '2', scheduledAt: '2026-01-01T00:00:02.000Z' },
+      {
+        recordId: '1',
+        detailMode: 'logged-out' as const,
+        scheduledAt: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        recordId: '2',
+        detailMode: 'logged-out' as const,
+        scheduledAt: '2026-01-01T00:00:02.000Z',
+      },
     ];
     await service.publishRecordDetailsBatch(messages);
     expect(queuePort.publish).toHaveBeenCalledTimes(2);
@@ -96,6 +115,7 @@ describe('QueueService', () => {
   it('publishes a single record detail message to the record detail topic', async () => {
     const message = {
       recordId: '1',
+      detailMode: 'logged-in' as const,
       scheduledAt: '2026-01-01T00:00:00.000Z',
       runId: 'run-1',
     };
@@ -106,7 +126,7 @@ describe('QueueService', () => {
     );
   });
   it('publishes an expired reprocess message to the expired reprocess topic', async () => {
-    const message = { runId: 'run-1' };
+    const message = { runId: 'run-1', detailMode: 'logged-in' as const };
     await service.publishExpiredReprocess(message);
     expect(queuePort.publish).toHaveBeenCalledWith(
       SCRAPE_RECORDS_EXPIRED_REPROCESS_TOPIC,
@@ -114,7 +134,7 @@ describe('QueueService', () => {
     );
   });
   it('publishes an xx reprocess message to the xx reprocess topic', async () => {
-    const message = { runId: 'run-1' };
+    const message = { runId: 'run-1', detailMode: 'logged-out' as const };
     await service.publishXxReprocess(message);
     expect(queuePort.publish).toHaveBeenCalledWith(
       SCRAPE_RECORDS_XX_REPROCESS_TOPIC,
